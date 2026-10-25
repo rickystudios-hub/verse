@@ -45,6 +45,7 @@ export interface Post {
   replies_count: number;
   reposts_count: number;
   is_deleted: boolean;
+  expires_at?: string | null;
   created_at: string;
   updated_at: string;
   // Joins opcionais
@@ -137,4 +138,18 @@ export interface AIQuotaInfo {
   max: number;
   remaining: number;
   resetAt: string;
+}
+
+export interface UserDataExport {
+  exportVersion: string;
+  exportedAt: string;
+  profile: Profile;
+  posts: Post[];
+  followersCount: number;
+  followingCount: number;
+  followers: Profile[];
+  following: Profile[];
+  aiUsageHistory: AIUsageRecord[];
+  reportsSubmitted: Report[];
+  privacyDisclaimer: string;
 }

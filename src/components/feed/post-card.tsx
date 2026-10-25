@@ -14,7 +14,8 @@ import {
   Flag, 
   MoreHorizontal, 
   VolumeX, 
-  UserX 
+  UserX,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { ReportModal } from '@/components/moderation/report-modal';
@@ -178,6 +179,16 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <time className="text-xs text-slate-500 shrink-0">
                   {formatRelativeTime(post.created_at)}
                 </time>
+
+                {post.expires_at && (
+                  <span
+                    className="flex items-center gap-1 text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20 font-medium shrink-0"
+                    title="Publicação efêmera: desaparecerá automaticamente em 24h"
+                  >
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>24h</span>
+                  </span>
+                )}
               </div>
 
               {/* Action Buttons: Delete or Context Menu */}

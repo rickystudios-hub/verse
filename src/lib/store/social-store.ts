@@ -9,7 +9,8 @@ import {
   ModerationDecision,
   AIFeature,
   AIUsageRecord,
-  AIQuotaInfo
+  AIQuotaInfo,
+  UserDataExport
 } from '@/types/database.types';
 import { INITIAL_MOCK_POSTS, INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
 import { extractEntities } from '@/lib/security/sanitize';
@@ -89,10 +90,11 @@ class SocialStore {
     const reposts = this.load<RepostRecord[]>(REPOSTS_STORAGE_KEY, []);
     const profiles = this.getProfiles();
 
-    // Filter out posts from blocked or muted users, or deleted posts
+    // Filter out posts from blocked or muted users, deleted posts or expired ephemeral posts
     const enriched = posts
       .filter((p) => {
         if (p.is_deleted || p.parent_id) return false;
+        if (p.expires_at && new Date(p.expires_at).getTime() <= Date.now()) return false;
         if (this.isBlocked(currentUserId, p.author_id)) return false;
         if (this.isMuted(currentUserId, p.author_id)) return false;
         return true;
@@ -130,6 +132,11 @@ class SocialStore {
       return { post: null, replies: [] };
     }
 
+    // Se o post efêmero expirou, retorna nulo
+    if (target.expires_at && new Date(target.expires_at).getTime() <= Date.now()) {
+      return { post: null, replies: [] };
+    }
+
     if (this.isBlocked(currentUserId, target.author_id)) {
       return { post: null, replies: [] };
     }
@@ -154,7 +161,8 @@ class SocialStore {
     authorId: string,
     content: string,
     mediaUrls: string[] = [],
-    parentId: string | null = null
+    parentId: string | null = null,
+    expiresInHours: number | null = null
   ): Post {
     const author = this.getProfileById(authorId);
     if (author?.is_suspended) {
@@ -162,6 +170,11 @@ class SocialStore {
     }
 
     const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS);
+
+    const now = new Date();
+    const expiresAt = expiresInHours
+      ? new Date(now.getTime() + expiresInHours * 3600 * 1000).toISOString()
+      : null;
 
     const newPost: Post = {
       id: `post-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -174,8 +187,9 @@ class SocialStore {
       replies_count: 0,
       reposts_count: 0,
       is_deleted: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      expires_at: expiresAt,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
       author: author || INITIAL_MOCK_PROFILES[0],
       has_liked: false,
       has_reposted: false,
@@ -733,6 +747,43 @@ class SocialStore {
   public getAIUsageHistory(userId: string): AIUsageRecord[] {
     const usages = this.load<AIUsageRecord[]>(AI_USAGE_STORAGE_KEY, []);
     return usages.filter((u) => u.user_id === userId);
+  }
+
+  // --- LGPD / GDPR DATA PORTABILITY ---
+  public exportUserData(userId: string): UserDataExport {
+    const profile = this.getProfileById(userId) || INITIAL_MOCK_PROFILES[0];
+    const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS).filter(
+      (p) => p.author_id === userId
+    );
+
+    const follows = this.load<FollowRecord[]>(FOLLOWS_STORAGE_KEY, INITIAL_FOLLOWS);
+    const profiles = this.getProfiles();
+
+    const followerIds = follows.filter((f) => f.following_id === userId).map((f) => f.follower_id);
+    const followingIds = follows.filter((f) => f.follower_id === userId).map((f) => f.following_id);
+
+    const followers = profiles.filter((p) => followerIds.includes(p.id));
+    const following = profiles.filter((p) => followingIds.includes(p.id));
+
+    const aiUsage = this.getAIUsageHistory(userId);
+    const reports = this.load<Report[]>(REPORTS_STORAGE_KEY, []).filter(
+      (r) => r.reporter_id === userId
+    );
+
+    return {
+      exportVersion: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      profile,
+      posts,
+      followersCount: followers.length,
+      followingCount: following.length,
+      followers,
+      following,
+      aiUsageHistory: aiUsage,
+      reportsSubmitted: reports,
+      privacyDisclaimer:
+        'Este arquivo contém todos os seus dados pessoais armazenados na plataforma VÉRSE, conforme os direitos garantidos pelo Art. 18 da Lei Geral de Proteção de Dados (LGPD) e Art. 20 do GDPR. O VÉRSE não comercializa seus dados com terceiros.',
+    };
   }
 }
 

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { APP_CONFIG } from '@/lib/constants';
-import { ImageIcon, Sparkles, AlertCircle } from 'lucide-react';
+import { ImageIcon, Sparkles, AlertCircle, Clock } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Post } from '@/types/database.types';
 import { INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
@@ -28,6 +28,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   const [imageUrl, setImageUrl] = React.useState('');
   const [showImageInput, setShowImageInput] = React.useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
+  const [isEphemeral, setIsEphemeral] = React.useState(false);
   const { showToast } = useToast();
 
   const maxChars = APP_CONFIG.limits.maxPostCharacters;
@@ -53,6 +54,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
         replies_count: 0,
         reposts_count: 0,
         is_deleted: false,
+        expires_at: isEphemeral ? new Date(Date.now() + 24 * 3600 * 1000).toISOString() : null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         author: INITIAL_MOCK_PROFILES[0],
@@ -67,10 +69,11 @@ export const PostComposer: React.FC<PostComposerProps> = ({
       setContent('');
       setImageUrl('');
       setShowImageInput(false);
+      setIsEphemeral(false);
       showToast({
         type: 'success',
-        title: 'Publicação enviada!',
-        description: 'Sua mensagem está visível no feed.',
+        title: isEphemeral ? 'Publicação efêmera enviada!' : 'Publicação enviada!',
+        description: isEphemeral ? 'Sua mensagem desaparecerá automaticamente em 24h.' : 'Sua mensagem está visível no feed.',
       });
     } catch {
       showToast({
@@ -156,11 +159,26 @@ export const PostComposer: React.FC<PostComposerProps> = ({
                 type="button"
                 onClick={handleAiClick}
                 aria-label="Assistente de escrita com IA"
-                title="Assistente de IA VÉRSE (Fase 5)"
+                title="Assistente de IA VÉRSE"
                 className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-slate-500 hover:text-accent hover:bg-accent/10 transition-colors"
               >
                 <Sparkles className="h-4 w-4 text-amber-500" />
                 <span className="hidden sm:inline">IA Ética</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsEphemeral(!isEphemeral)}
+                aria-label="Tornar publicação efêmera de 24 horas"
+                title={isEphemeral ? 'Expira em 24h ativado' : 'Tornar efêmero (24h)'}
+                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  isEphemeral
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'text-slate-500 hover:text-amber-500 hover:bg-amber-500/10'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{isEphemeral ? '24h Ativo' : 'Efêmero'}</span>
               </button>
             </div>
 

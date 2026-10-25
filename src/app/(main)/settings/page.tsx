@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { socialStore } from '@/lib/store/social-store';
-import { Moon, Sun, Shield, Trash2, Database, AlertTriangle, Sparkles } from 'lucide-react';
+import { Moon, Sun, Shield, Trash2, Database, AlertTriangle, Sparkles, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
@@ -59,6 +59,26 @@ export default function SettingsPage() {
       description: 'Todos os seus registros locais foram removidos permanentemente.',
     });
     router.push('/login');
+  };
+
+  const handleExportData = () => {
+    const data = socialStore.exportUserData('11111111-1111-4111-8111-111111111111');
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verse-dados-${data.profile.username}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast({
+      type: 'success',
+      title: 'Portabilidade LGPD Concluída',
+      description: 'Seus dados foram exportados em formato JSON estruturado.',
+    });
   };
 
   return (
@@ -200,6 +220,36 @@ export default function SettingsPage() {
             <span className="text-slate-500 font-medium">Provedor de IA:</span>
             <span className="font-bold text-emerald-500">Ativo (Adaptador Multi-Provedor com Fallback)</span>
           </div>
+        </div>
+      </Card>
+
+      {/* Portabilidade de Dados e LGPD */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+            <Download className="h-4 w-4 text-accent" />
+            <span>Portabilidade de Dados Pessoais (LGPD / GDPR)</span>
+          </div>
+          <span className="text-[10px] font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            Art. 18 LGPD
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Você é o único proprietário dos seus dados. Conforme a LGPD e GDPR, você pode baixar a qualquer momento uma cópia completa das suas publicações, seguidores, denúncias e perfil em formato JSON legível.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+          <span className="text-xs font-mono text-slate-400">
+            Formato: JSON estruturado padrão W3C
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportData}
+            className="gap-1.5 text-xs font-bold shrink-0 text-foreground"
+          >
+            <Download className="w-3.5 h-3.5 text-accent" />
+            Baixar Meus Dados (.json)
+          </Button>
         </div>
       </Card>
 

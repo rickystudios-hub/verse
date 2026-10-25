@@ -2,13 +2,24 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/toast';
 import { APP_CONFIG } from '@/lib/constants';
+import { PWARegister } from '@/components/layout/pwa-register';
 
 export const metadata: Metadata = {
   title: `${APP_CONFIG.name} — Rede Social Independente, Privada e com IA`,
   description:
     'Microblogging minimalista, privado e seguro. Construído com infraestrutura a custo zero, RLS estrito e IA sob controle do usuário.',
-  keywords: ['rede social', 'microblogging', 'privacidade', 'criptografia', 'código aberto', 'VÉRSE'],
+  keywords: ['rede social', 'microblogging', 'privacidade', 'criptografia', 'código aberto', 'VÉRSE', 'PWA'],
   authors: [{ name: 'VÉRSE Community' }],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: APP_CONFIG.name,
+  },
+  icons: {
+    icon: '/icons/icon.svg',
+    apple: '/icons/icon.svg',
+  },
 };
 
 export const viewport = {
@@ -29,7 +40,10 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans text-foreground">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          {children}
+          <PWARegister />
+        </ToastProvider>
       </body>
     </html>
   );
