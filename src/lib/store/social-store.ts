@@ -670,6 +670,13 @@ class SocialStore {
     this.save(NOTIFICATIONS_STORAGE_KEY, notifications);
   }
 
+  public getUnreadNotificationsCount(userId: string): number {
+    const notifications = this.load<NotificationItem[]>(NOTIFICATIONS_STORAGE_KEY, []);
+    return notifications.filter(
+      (n) => n.recipient_id === userId && !n.read_at && !this.isBlocked(userId, n.actor_id)
+    ).length;
+  }
+
   // --- SEARCH ---
   public search(query: string, currentUserId = INITIAL_MOCK_PROFILES[0].id): { posts: Post[]; profiles: Profile[] } {
     const clean = query.trim().toLowerCase();

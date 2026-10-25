@@ -111,12 +111,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
     }
   };
 
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  React.useEffect(() => {
+    const updateCount = () => {
+      setUnreadCount(socialStore.getUnreadNotificationsCount('11111111-1111-4111-8111-111111111111'));
+    };
+    updateCount();
+    window.addEventListener('storage', updateCount);
+    return () => window.removeEventListener('storage', updateCount);
+  }, [pathname]);
+
   const isStaff = socialStore.isStaff('11111111-1111-4111-8111-111111111111');
 
   const navItems = [
     { label: 'Página Inicial', href: '/', icon: Home },
     { label: 'Explorar', href: '/explore', icon: Search },
-    { label: 'Notificações', href: '/notifications', icon: Bell, badge: '2' },
+    { 
+      label: 'Notificações', 
+      href: '/notifications', 
+      icon: Bell, 
+      badge: unreadCount > 0 ? String(unreadCount) : undefined 
+    },
     { label: 'Mensagens', href: '/messages', icon: Mail, tag: 'Fase 6' },
     { label: 'Meu Perfil', href: '/profile/richard', icon: User },
     { label: 'Configurações', href: '/settings', icon: Settings },

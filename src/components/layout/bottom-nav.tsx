@@ -6,12 +6,24 @@ import { usePathname } from 'next/navigation';
 import { Home, Search, PenSquare, Bell, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { socialStore } from '@/lib/store/social-store';
+
 export interface BottomNavProps {
   onOpenComposer?: () => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ onOpenComposer }) => {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  React.useEffect(() => {
+    const updateCount = () => {
+      setUnreadCount(socialStore.getUnreadNotificationsCount('11111111-1111-4111-8111-111111111111'));
+    };
+    updateCount();
+    window.addEventListener('storage', updateCount);
+    return () => window.removeEventListener('storage', updateCount);
+  }, [pathname]);
 
   return (
     <nav
@@ -58,7 +70,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenComposer }) => {
         )}
       >
         <Bell className="h-5 w-5" />
-        <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-accent" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-accent" />
+        )}
       </Link>
 
       <Link

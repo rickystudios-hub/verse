@@ -17,13 +17,7 @@ export default function NotificationsPage() {
   const [isLoaded, setIsLoaded] = React.useState(false);
 
   const loadNotifications = React.useCallback(() => {
-    // If no notifications exist yet, seed a couple of initial ones
-    let items = socialStore.getNotifications(currentUserId);
-    if (items.length === 0) {
-      // Seed a welcome notification and an interaction
-      socialStore.toggleLike('post-1', '33333333-3333-4333-8333-333333333333');
-      items = socialStore.getNotifications(currentUserId);
-    }
+    const items = socialStore.getNotifications(currentUserId);
     setNotifications(items);
     setIsLoaded(true);
   }, [currentUserId]);

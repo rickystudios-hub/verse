@@ -76,7 +76,7 @@ export default function MainLayout({
       {/* Center Main Content Column */}
       <div className="flex w-full min-w-0 max-w-[640px] flex-col border-x border-border pb-20 md:pb-6">
         {/* Mobile Top Header */}
-        <Header />
+        <Header onOpenComposer={() => setIsComposerOpen(true)} />
 
         {/* Page Content */}
         <main className="flex-1">{children}</main>
