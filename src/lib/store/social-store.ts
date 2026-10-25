@@ -1,4 +1,13 @@
-import { Post, Profile, NotificationItem } from '@/types/database.types';
+import { 
+  Post, 
+  Profile, 
+  NotificationItem, 
+  Report, 
+  ModerationAction, 
+  ReportCategory, 
+  ReportStatus, 
+  ModerationDecision 
+} from '@/types/database.types';
 import { INITIAL_MOCK_POSTS, INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
 import { extractEntities } from '@/lib/security/sanitize';
 
@@ -8,6 +17,10 @@ const FOLLOWS_STORAGE_KEY = 'verse_follows_v1';
 const LIKES_STORAGE_KEY = 'verse_likes_v1';
 const REPOSTS_STORAGE_KEY = 'verse_reposts_v1';
 const NOTIFICATIONS_STORAGE_KEY = 'verse_notifications_v1';
+const BLOCKS_STORAGE_KEY = 'verse_blocks_v1';
+const MUTES_STORAGE_KEY = 'verse_mutes_v1';
+const REPORTS_STORAGE_KEY = 'verse_reports_v1';
+const MODERATION_ACTIONS_STORAGE_KEY = 'verse_moderation_actions_v1';
 
 export interface FollowRecord {
   follower_id: string;
@@ -22,6 +35,16 @@ export interface LikeRecord {
 export interface RepostRecord {
   user_id: string;
   post_id: string;
+}
+
+export interface BlockRecord {
+  blocker_id: string;
+  blocked_id: string;
+}
+
+export interface MuteRecord {
+  muter_id: string;
+  muted_id: string;
 }
 
 // Initial follows
@@ -61,9 +84,14 @@ class SocialStore {
     const reposts = this.load<RepostRecord[]>(REPOSTS_STORAGE_KEY, []);
     const profiles = this.getProfiles();
 
-    // Attach current author and user interaction flags
+    // Filter out posts from blocked or muted users, or deleted posts
     const enriched = posts
-      .filter((p) => !p.is_deleted && !p.parent_id) // only root posts in main feeds
+      .filter((p) => {
+        if (p.is_deleted || p.parent_id) return false;
+        if (this.isBlocked(currentUserId, p.author_id)) return false;
+        if (this.isMuted(currentUserId, p.author_id)) return false;
+        return true;
+      })
       .map((p) => {
         const author = profiles.find((prof) => prof.id === p.author_id) || p.author;
         const has_liked = likes.some((l) => l.user_id === currentUserId && l.post_id === p.id);
@@ -97,6 +125,10 @@ class SocialStore {
       return { post: null, replies: [] };
     }
 
+    if (this.isBlocked(currentUserId, target.author_id)) {
+      return { post: null, replies: [] };
+    }
+
     const enrich = (p: Post): Post => {
       const author = profiles.find((prof) => prof.id === p.author_id) || p.author;
       const has_liked = likes.some((l) => l.user_id === currentUserId && l.post_id === p.id);
@@ -106,7 +138,7 @@ class SocialStore {
 
     const enrichedPost = enrich(target);
     const replies = posts
-      .filter((p) => p.parent_id === postId && !p.is_deleted)
+      .filter((p) => p.parent_id === postId && !p.is_deleted && !this.isBlocked(currentUserId, p.author_id))
       .map(enrich)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -119,8 +151,12 @@ class SocialStore {
     mediaUrls: string[] = [],
     parentId: string | null = null
   ): Post {
+    const author = this.getProfileById(authorId);
+    if (author?.is_suspended) {
+      throw new Error('Conta suspensa: você não tem permissão para realizar publicações.');
+    }
+
     const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS);
-    const author = this.getProfileById(authorId) || INITIAL_MOCK_PROFILES[0];
 
     const newPost: Post = {
       id: `post-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -135,7 +171,7 @@ class SocialStore {
       is_deleted: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      author,
+      author: author || INITIAL_MOCK_PROFILES[0],
       has_liked: false,
       has_reposted: false,
     };
@@ -161,7 +197,7 @@ class SocialStore {
     const { mentions } = extractEntities(content);
     for (const mentionUsername of mentions) {
       const targetUser = this.getProfileByUsername(mentionUsername);
-      if (targetUser && targetUser.id !== authorId) {
+      if (targetUser && targetUser.id !== authorId && !this.isBlocked(authorId, targetUser.id)) {
         this.createNotification(targetUser.id, authorId, 'mention', newPost.id);
       }
     }
@@ -180,8 +216,8 @@ class SocialStore {
     }
 
     const post = posts[postIndex];
-    // Authorization check: only author can delete
-    if (post.author_id !== requestingUserId) {
+    // Authorization check: only author or staff can delete
+    if (post.author_id !== requestingUserId && !this.isStaff(requestingUserId)) {
       return { success: false, error: 'Acesso negado: você não tem permissão para excluir esta publicação.' };
     }
 
@@ -218,7 +254,7 @@ class SocialStore {
       if (post) {
         post.likes_count += 1;
         // Create notification for post author if not liking own post
-        if (post.author_id !== userId) {
+        if (post.author_id !== userId && !this.isBlocked(userId, post.author_id)) {
           this.createNotification(post.author_id, userId, 'like', postId);
         }
       }
@@ -247,7 +283,7 @@ class SocialStore {
       reposts.push({ user_id: userId, post_id: postId });
       if (post) {
         post.reposts_count += 1;
-        if (post.author_id !== userId) {
+        if (post.author_id !== userId && !this.isBlocked(userId, post.author_id)) {
           this.createNotification(post.author_id, userId, 'repost', postId);
         }
       }
@@ -303,6 +339,10 @@ class SocialStore {
       throw new Error('Não é permitido seguir a si mesmo.');
     }
 
+    if (this.isBlocked(followerId, followingId)) {
+      throw new Error('Ação bloqueada: existe uma restrição de bloqueio ativa entre estes perfis.');
+    }
+
     let follows = this.load<FollowRecord[]>(FOLLOWS_STORAGE_KEY, INITIAL_FOLLOWS);
     const existingIndex = follows.findIndex(
       (f) => f.follower_id === followerId && f.following_id === followingId
@@ -332,14 +372,224 @@ class SocialStore {
     const follows = this.load<FollowRecord[]>(FOLLOWS_STORAGE_KEY, INITIAL_FOLLOWS);
     const profiles = this.getProfiles();
     const followerIds = follows.filter((f) => f.following_id === userId).map((f) => f.follower_id);
-    return profiles.filter((p) => followerIds.includes(p.id));
+    return profiles.filter((p) => followerIds.includes(p.id) && !this.isBlocked(userId, p.id));
   }
 
   public getFollowing(userId: string): Profile[] {
     const follows = this.load<FollowRecord[]>(FOLLOWS_STORAGE_KEY, INITIAL_FOLLOWS);
     const profiles = this.getProfiles();
     const followingIds = follows.filter((f) => f.follower_id === userId).map((f) => f.following_id);
-    return profiles.filter((p) => followingIds.includes(p.id));
+    return profiles.filter((p) => followingIds.includes(p.id) && !this.isBlocked(userId, p.id));
+  }
+
+  // --- BLOCKS (Bloqueios mútuos com efeitos reais) ---
+  public blockUser(blockerId: string, blockedId: string): void {
+    if (blockerId === blockedId) {
+      throw new Error('Não é permitido bloquear a si mesmo.');
+    }
+
+    const blocks = this.load<BlockRecord[]>(BLOCKS_STORAGE_KEY, []);
+    if (!blocks.some((b) => b.blocker_id === blockerId && b.blocked_id === blockedId)) {
+      blocks.push({ blocker_id: blockerId, blocked_id: blockedId });
+      this.save(BLOCKS_STORAGE_KEY, blocks);
+    }
+
+    // Ao bloquear, remove automaticamente qualquer relação de seguimento mútuo
+    let follows = this.load<FollowRecord[]>(FOLLOWS_STORAGE_KEY, INITIAL_FOLLOWS);
+    follows = follows.filter(
+      (f) =>
+        !(f.follower_id === blockerId && f.following_id === blockedId) &&
+        !(f.follower_id === blockedId && f.following_id === blockerId)
+    );
+    this.save(FOLLOWS_STORAGE_KEY, follows);
+  }
+
+  public unblockUser(blockerId: string, blockedId: string): void {
+    let blocks = this.load<BlockRecord[]>(BLOCKS_STORAGE_KEY, []);
+    blocks = blocks.filter(
+      (b) => !(b.blocker_id === blockerId && b.blocked_id === blockedId)
+    );
+    this.save(BLOCKS_STORAGE_KEY, blocks);
+  }
+
+  public isBlocked(userA: string, userB: string): boolean {
+    const blocks = this.load<BlockRecord[]>(BLOCKS_STORAGE_KEY, []);
+    return blocks.some(
+      (b) =>
+        (b.blocker_id === userA && b.blocked_id === userB) ||
+        (b.blocker_id === userB && b.blocked_id === userA)
+    );
+  }
+
+  public getBlockedUsers(userId: string): Profile[] {
+    const blocks = this.load<BlockRecord[]>(BLOCKS_STORAGE_KEY, []);
+    const blockedIds = blocks
+      .filter((b) => b.blocker_id === userId)
+      .map((b) => b.blocked_id);
+    const profiles = this.getProfiles();
+    return profiles.filter((p) => blockedIds.includes(p.id));
+  }
+
+  // --- MUTES (Silenciamento sutil) ---
+  public muteUser(muterId: string, mutedId: string): void {
+    if (muterId === mutedId) return;
+    const mutes = this.load<MuteRecord[]>(MUTES_STORAGE_KEY, []);
+    if (!mutes.some((m) => m.muter_id === muterId && m.muted_id === mutedId)) {
+      mutes.push({ muter_id: muterId, muted_id: mutedId });
+      this.save(MUTES_STORAGE_KEY, mutes);
+    }
+  }
+
+  public unmuteUser(muterId: string, mutedId: string): void {
+    let mutes = this.load<MuteRecord[]>(MUTES_STORAGE_KEY, []);
+    mutes = mutes.filter(
+      (m) => !(m.muter_id === muterId && m.muted_id === mutedId)
+    );
+    this.save(MUTES_STORAGE_KEY, mutes);
+  }
+
+  public isMuted(muterId: string, mutedId: string): boolean {
+    const mutes = this.load<MuteRecord[]>(MUTES_STORAGE_KEY, []);
+    return mutes.some((m) => m.muter_id === muterId && m.muted_id === mutedId);
+  }
+
+  // --- MODERATION & REPORTS ---
+  public isStaff(userId: string): boolean {
+    const user = this.getProfileById(userId);
+    return user?.role === 'admin' || user?.role === 'moderator';
+  }
+
+  public createReport(
+    reporterId: string,
+    targetType: 'post' | 'profile',
+    targetId: string,
+    category: ReportCategory,
+    description: string = ''
+  ): Report {
+    const reports = this.load<Report[]>(REPORTS_STORAGE_KEY, []);
+
+    const newReport: Report = {
+      id: `report-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      reporter_id: reporterId,
+      target_type: targetType,
+      target_id: targetId,
+      category,
+      description: description.trim() || null,
+      status: 'pending',
+      reviewed_by: null,
+      resolution_notes: null,
+      created_at: new Date().toISOString(),
+      resolved_at: null,
+    };
+
+    reports.unshift(newReport);
+    this.save(REPORTS_STORAGE_KEY, reports);
+    return newReport;
+  }
+
+  public getReports(statusFilter?: ReportStatus): Report[] {
+    const reports = this.load<Report[]>(REPORTS_STORAGE_KEY, []);
+    const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS);
+    const profiles = this.getProfiles();
+
+    const enriched = reports.map((r) => {
+      const reporter = profiles.find((p) => p.id === r.reporter_id);
+      let target_post: Post | undefined;
+      let target_profile: Profile | undefined;
+
+      if (r.target_type === 'post') {
+        target_post = posts.find((p) => p.id === r.target_id);
+      } else {
+        target_profile = profiles.find((p) => p.id === r.target_id);
+      }
+
+      return {
+        ...r,
+        reporter,
+        target_post,
+        target_profile,
+      };
+    });
+
+    if (statusFilter) {
+      return enriched.filter((r) => r.status === statusFilter);
+    }
+    return enriched;
+  }
+
+  public resolveReport(
+    reportId: string,
+    moderatorId: string,
+    action: ModerationDecision,
+    reason: string
+  ): { success: boolean; error?: string } {
+    if (!this.isStaff(moderatorId)) {
+      return { success: false, error: 'Acesso negado: apenas moderadores e administradores podem aplicar decisões de moderação.' };
+    }
+
+    if (!reason || reason.trim().length < 5) {
+      return { success: false, error: 'É obrigatório informar uma justificativa detalhada para a decisão.' };
+    }
+
+    const reports = this.load<Report[]>(REPORTS_STORAGE_KEY, []);
+    const reportIndex = reports.findIndex((r) => r.id === reportId);
+
+    if (reportIndex === -1) {
+      return { success: false, error: 'Denúncia não encontrada.' };
+    }
+
+    const report = reports[reportIndex];
+    report.status = action === 'dismiss' ? 'dismissed' : 'resolved';
+    report.reviewed_by = moderatorId;
+    report.resolution_notes = reason.trim();
+    report.resolved_at = new Date().toISOString();
+
+    // Aplica o efeito da ação
+    if (action === 'delete_post' && report.target_type === 'post') {
+      const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS);
+      const post = posts.find((p) => p.id === report.target_id);
+      if (post) post.is_deleted = true;
+      this.save(POSTS_STORAGE_KEY, posts);
+    } else if (action === 'suspend_user' || action === 'ban_user') {
+      const profiles = this.getProfiles();
+      const targetUserId =
+        report.target_type === 'profile'
+          ? report.target_id
+          : this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS).find(
+              (p) => p.id === report.target_id
+            )?.author_id;
+
+      if (targetUserId) {
+        const prof = profiles.find((p) => p.id === targetUserId);
+        if (prof) prof.is_suspended = true;
+        this.save(PROFILES_STORAGE_KEY, profiles);
+      }
+    }
+
+    // Registra auditoria imutável
+    const actions = this.load<ModerationAction[]>(MODERATION_ACTIONS_STORAGE_KEY, []);
+    actions.unshift({
+      id: `mod-action-${Date.now()}`,
+      moderator_id: moderatorId,
+      target_type: report.target_type,
+      target_id: report.target_id,
+      action_taken: action,
+      reason: reason.trim(),
+      created_at: new Date().toISOString(),
+    });
+    this.save(MODERATION_ACTIONS_STORAGE_KEY, actions);
+    this.save(REPORTS_STORAGE_KEY, reports);
+
+    return { success: true };
+  }
+
+  public getModerationActions(): ModerationAction[] {
+    const actions = this.load<ModerationAction[]>(MODERATION_ACTIONS_STORAGE_KEY, []);
+    const profiles = this.getProfiles();
+    return actions.map((a) => ({
+      ...a,
+      moderator: profiles.find((p) => p.id === a.moderator_id),
+    }));
   }
 
   // --- NOTIFICATIONS ---
@@ -349,6 +599,8 @@ class SocialStore {
     type: NotificationItem['type'],
     resourceId: string | null
   ): void {
+    if (this.isBlocked(recipientId, actorId)) return;
+
     const notifications = this.load<NotificationItem[]>(NOTIFICATIONS_STORAGE_KEY, []);
     const actor = this.getProfileById(actorId);
 
@@ -372,7 +624,7 @@ class SocialStore {
     const profiles = this.getProfiles();
 
     return notifications
-      .filter((n) => n.recipient_id === userId)
+      .filter((n) => n.recipient_id === userId && !this.isBlocked(userId, n.actor_id))
       .map((n) => ({
         ...n,
         actor: profiles.find((p) => p.id === n.actor_id) || n.actor,
@@ -400,12 +652,12 @@ class SocialStore {
   }
 
   // --- SEARCH ---
-  public search(query: string): { posts: Post[]; profiles: Profile[] } {
+  public search(query: string, currentUserId = INITIAL_MOCK_PROFILES[0].id): { posts: Post[]; profiles: Profile[] } {
     const clean = query.trim().toLowerCase();
     if (!clean) return { posts: [], profiles: [] };
 
-    const posts = this.getPosts('for_you');
-    const profiles = this.getProfiles();
+    const posts = this.getPosts('for_you', currentUserId);
+    const profiles = this.getProfiles().filter((p) => !this.isBlocked(currentUserId, p.id));
 
     const matchedPosts = posts.filter(
       (p) =>

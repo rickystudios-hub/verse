@@ -13,12 +13,14 @@ import {
   PenSquare, 
   Moon, 
   Sun,
+  ShieldCheck,
   LogOut
 } from 'lucide-react';
 import { Logo } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { socialStore } from '@/lib/store/social-store';
 import { cn } from '@/lib/utils';
 
 export interface SidebarProps {
@@ -53,6 +55,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
     }
   };
 
+  const isStaff = socialStore.isStaff('11111111-1111-4111-8111-111111111111');
+
   const navItems = [
     { label: 'Página Inicial', href: '/', icon: Home },
     { label: 'Explorar', href: '/explore', icon: Search },
@@ -60,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
     { label: 'Mensagens', href: '/messages', icon: Mail, tag: 'Fase 6' },
     { label: 'Meu Perfil', href: '/profile/richard', icon: User },
     { label: 'Configurações', href: '/settings', icon: Settings },
+    ...(isStaff ? [{ label: 'Moderação', href: '/admin', icon: ShieldCheck, tag: 'Staff' }] : []),
   ];
 
   return (

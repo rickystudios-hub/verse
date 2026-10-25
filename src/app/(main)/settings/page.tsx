@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { socialStore } from '@/lib/store/social-store';
 import { Moon, Sun, Shield, Trash2, Database, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -120,6 +121,29 @@ export default function SettingsPage() {
               }`}
             />
           </button>
+        </div>
+
+        <div className="border-t border-border pt-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-foreground">Contas Bloqueadas</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Gerencie usuários bloqueados que não podem ver suas publicações nem interagir.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const blocked = socialStore.getBlockedUsers('11111111-1111-4111-8111-111111111111');
+              if (blocked.length === 0) {
+                showToast({ type: 'info', title: 'Nenhum usuário bloqueado no momento.' });
+              } else {
+                showToast({ type: 'info', title: `${blocked.length} usuário(s) bloqueado(s)` });
+              }
+            }}
+          >
+            Ver Bloqueios
+          </Button>
         </div>
       </Card>
 

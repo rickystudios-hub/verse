@@ -83,3 +83,40 @@ export interface NotificationItem {
   read_at: string | null;
   created_at: string;
 }
+
+export type ModerationDecision = 
+  | 'warn' 
+  | 'hide_post' 
+  | 'delete_post' 
+  | 'suspend_user' 
+  | 'ban_user' 
+  | 'dismiss';
+
+export interface Report {
+  id: string;
+  reporter_id: string;
+  target_type: 'post' | 'profile';
+  target_id: string;
+  category: ReportCategory;
+  description: string | null;
+  status: ReportStatus;
+  reviewed_by: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  reporter?: Profile;
+  target_post?: Post;
+  target_profile?: Profile;
+}
+
+export interface ModerationAction {
+  id: string;
+  moderator_id: string;
+  target_type: 'post' | 'profile';
+  target_id: string;
+  action_taken: ModerationDecision;
+  reason: string;
+  created_at: string;
+  moderator?: Profile;
+}
+

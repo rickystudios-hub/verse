@@ -45,7 +45,7 @@ describe('FASE 3 — Núcleo Social (SocialStore & Regras de Negócio)', () => {
 
     it('NÃO deve permitir que um usuário apague publicações alheias', () => {
       const post = socialStore.createPost(user1, 'Post do usuário 1');
-      const deleteResult = socialStore.deletePost(post.id, user2); // Tentativa do user2
+      const deleteResult = socialStore.deletePost(post.id, user3); // Tentativa do user3 (usuário comum sem cargo de staff)
       expect(deleteResult.success).toBe(false);
       expect(deleteResult.error).toContain('Acesso negado');
 
