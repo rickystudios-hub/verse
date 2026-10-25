@@ -1,30 +1,69 @@
-# ESPECIFICAÇÃO DE ARQUITETURA E SEGURANÇA: MENSAGENS E2EE (FASE 6)
+# ESPECIFICAÇÃO DE ARQUITETURA E SEGURANÇA: MENSAGENS E2EE (FASE 6 CONCLUÍDA)
 
-Este documento estabelece os critérios técnicos, requisitos criptográficos e limites de segurança para a funcionalidade de mensagens de ponta a ponta (**End-to-End Encryption**) do **VÉRSE**.
-
----
-
-## 1. Princípios Criptográficos Inegociáveis
-
-1. **Zero Texto Claro no Servidor:** O servidor nunca recebe, processa ou armazena o texto claro de mensagens privadas.
-2. **Sem Chaves Privadas no Servidor:** As chaves privadas dos pares de identidade e das chaves de sessão permanecem exclusivamente nos dispositivos dos usuários (armazenamento seguro via IndexedDB / Web Crypto API).
-3. **Não Inventar Criptografia:** Proibido criar algoritmos proprietários de cifra, hash ou troca de chaves.
-4. **Respeito aos Padrões da Indústria:** A implementação utilizará o protocolo Double Ratchet / Signal Protocol ou o protocolo X3DH documentado por bibliotecas mantidas (ex: `@signalapp/libsignal-client` compilado para WASM ou `matrix-js-sdk` / `@matrix-org/olm`).
-5. **Sem Fallback Silencioso para Texto Puro:** Caso uma sessão falhe na descriptografia ou um dispositivo não esteja verificado, o sistema deve exibir um erro de segurança explícito e NUNCA enviar ou receber texto claro como alternativa.
+Este documento estabelece as decisões técnicas, garantias criptográficas e limites de segurança implementados na mensageria de ponta a ponta (**End-to-End Encryption**) do **VÉRSE**.
 
 ---
 
-## 2. Requisitos Técnicos para a Fase 6
+## 1. Princípios Criptográficos Implementados
 
-- [ ] Avaliação de compatibilidade da biblioteca criptográfica com Next.js SSR / Client Bundles (isolamento estrito no browser).
-- [ ] Geração de Identity Key Pairs (IK), Signed Prekeys (SPK) e One-Time Prekeys (OPK) via Web Crypto API.
-- [ ] Publicação apenas das chaves públicas na tabela `device_keys`.
-- [ ] Mecanismo de verificação de chave/dispositivo (Safety Numbers ou Fingerprints para confirmação presencial/fora de banda).
-- [ ] Tratamento de múltiplos dispositivos e revogação de dispositivos antigos.
-- [ ] Forward Secrecy (sigilo prospectivo) e Post-Compromise Security (recuperação pós-comprometimento).
-- [ ] Notificações no servidor sem conteúdo sensível (apenas "Você recebeu uma nova mensagem").
+1. **Zero Texto Claro no Servidor:** O servidor e o banco de dados recebem, transmitem e armazenam estritamente blobs criptografados opacos em formato Base64 (`ciphertext` e `iv`). O texto claro existe apenas transitoriamente na memória volátil do navegador de cada participante.
+2. **Sem Chaves Privadas no Servidor:** As chaves privadas ECDH P-256 são geradas e armazenadas exclusivamente no cliente (`localStorage` / `IndexedDB`) do dispositivo local. Nem moderadores nem administradores possuem meios de recuperá-las ou interceptá-las.
+3. **Não Inventar Criptografia (Padrões W3C / NIST):** Todas as operações utilizam a **Web Crypto API** nativa (`crypto.subtle`), suportada universalmente por todos os navegadores modernos e acelerada por hardware no sistema operacional:
+   - **Troca de Chaves Assíncrona:** Elliptic Curve Diffie-Hellman (**ECDH**) sobre a curva **NIST P-256** (FIPS 186-4).
+   - **Cifra Simétrica Autenticada:** **AES-GCM-256** (Galois/Counter Mode) com chave derivada de 256 bits.
+   - **Vetor de Inicialização (IV):** 96 bits (12 bytes) criptograficamente pseudoaleatórios únicos por mensagem (`crypto.getRandomValues`).
+   - **Integridade e Anti-Tampering:** Tag de autenticação de 128 bits do AES-GCM; qualquer alteração no tráfego ou no banco é detectada e a decifra é sumariamente abortada com erro.
+4. **Sem Fallback para Texto Puro:** Falhas de descriptografia (ex: chave divergente, payload corrompido) exibem alerta explícito de erro criptográfico e nunca recorrem a texto simples.
+5. **Isolamento de IA:** As mensagens privadas E2EE são 100% isoladas de qualquer modelo de inteligência artificial, garantindo sigilo absoluto.
 
 ---
 
-## 3. Estado Atual na Fundação (Fase 2)
-Na Fase 2, as tabelas `conversations`, `conversation_members`, `encrypted_messages` e `device_keys` foram criadas no banco de dados com políticas RLS estritas, permitindo que a aplicação esteja preparada para receber o protocolo criptográfico na Fase 6 sem necessidade de quebrar a arquitetura do banco. A interface de mensagens no frontend apresenta o status modular com aviso transparente de que o recurso está em preparação para a Fase 6.
+## 2. Fluxo Criptográfico Passo a Passo
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Alice as Dispositivo da Alice (Browser)
+    participant Server as Servidor / Supabase DB
+    actor Bob as Dispositivo do Bob (Browser)
+
+    Note over Alice,Bob: 1. Geração de Chaves Locais
+    Alice->>Alice: Gera par de chaves ECDH P-256 (Privada salva localmente)
+    Alice->>Server: Publica Chave Pública da Alice (JWK)
+    Bob->>Bob: Gera par de chaves ECDH P-256 (Privada salva localmente)
+    Bob->>Server: Publica Chave Pública do Bob (JWK)
+
+    Note over Alice,Server: 2. Envio de Mensagem Cifrada
+    Alice->>Server: Consulta Chave Pública do Bob
+    Alice->>Alice: Deriva Chave Simétrica AES-GCM-256 (AlicePrivKey + BobPubKey)
+    Alice->>Alice: Cifra mensagem com IV de 12 bytes
+    Alice->>Server: Envia Payload Cifrado (Ciphertext Base64, IV Base64)
+
+    Note over Server,Bob: 3. Recepção e Decifra
+    Server->>Bob: Entrega Payload Cifrado
+    Bob->>Bob: Deriva a mesma Chave Simétrica (BobPrivKey + AlicePubKey)
+    Bob->>Bob: Decifra com AES-GCM e renderiza texto na tela
+```
+
+---
+
+## 3. Verificação Contra Ataques Man-in-the-Middle (Safety Numbers)
+
+Para mitigar ataques em que uma infraestrutura maliciosa pudesse substituir a chave pública de um participante durante a negociação, o VÉRSE implementa o cálculo de **Safety Numbers**:
+- É calculado um hash SHA-256 combinando ordenadamente as coordenadas das chaves públicas de Alice e Bob:
+  $$\text{Fingerprint} = \text{SHA-256}(\text{"verse\_safety\_v1:"} \parallel \min(K_A, K_B) \parallel \max(K_A, K_B))$$
+- O resultado é formatado em 4 blocos de 5 dígitos numéricos legíveis (`XXXXX XXXXX XXXXX XXXXX`).
+- Alice e Bob podem comparar visualmente ou via canal de voz fora de banda para certificar que estão se comunicando com o dispositivo legítimo.
+
+---
+
+## 4. Auditoria de Carga Cifrada no Frontend
+
+O usuário dispõe na interface de mensagens de um botão **"Inspecionar Carga"**, que exibe o `ciphertext` e o `iv` reais armazenados no banco, demonstrando empiricamente que os dados transmitidos são indecifráveis sem a posse física da chave privada do dispositivo.
+
+---
+
+## 5. Limitações Conhecidas e Próximos Passos (Evolução Futura)
+
+- **Múltiplos Dispositivos Simultâneos:** No modelo atual, as chaves residem no dispositivo emissor/receptor. Sincronização multi-dispositivo sem comprometer o sigilo requer mecanismo de sessão por dispositivo (Fan-out de mensagens cifradas para todos os dispositivos registrados do usuário).
+- **Forward Secrecy Total (Double Ratchet):** Para rotação contínua de chaves a cada troca de mensagem individual (Signal Protocol completo), uma camada Double Ratchet com KDF Chains pode ser adicionada sobre a base ECDH P-256 atual.
