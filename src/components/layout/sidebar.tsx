@@ -19,7 +19,7 @@ import {
 import { Logo } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { socialStore } from '@/lib/store/social-store';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +30,12 @@ export interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
   const pathname = usePathname();
   const [isDark, setIsDark] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState<{
+    id: string;
+    email?: string;
+    username?: string;
+    fullName?: string;
+  } | null>(null);
   const isConnected = isSupabaseConfigured();
 
   React.useEffect(() => {
@@ -41,7 +47,57 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, []);
+
+    if (!isConnected) {
+      setCurrentUser({
+        id: '11111111-1111-4111-8111-111111111111',
+        email: 'richard@verse.app',
+        username: 'richard',
+        fullName: 'Richard',
+      });
+      return;
+    }
+
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setCurrentUser({
+          id: user.id,
+          email: user.email,
+          username: user.user_metadata?.username || user.email?.split('@')[0] || 'richard',
+          fullName: user.user_metadata?.full_name || 'Richard',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser({
+          id: session.user.id,
+          email: session.user.email,
+          username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'richard',
+          fullName: session.user.user_metadata?.full_name || 'Richard',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [isConnected]);
+
+  const handleSignOut = async () => {
+    if (isConnected) {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    }
+    setCurrentUser(null);
+    window.location.href = '/login';
+  };
 
   const toggleTheme = () => {
     const nextDark = !isDark;
@@ -149,23 +205,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenComposer }) => {
           </button>
         </div>
 
-        {/* Current User Quick Summary */}
-        <div className="flex items-center justify-between rounded-xl p-2 hover:bg-surface-muted transition-colors">
-          <Link href="/profile/richard" className="flex items-center gap-2.5 min-w-0">
-            <Avatar fallbackName="Richard" size="sm" />
-            <div className="truncate">
-              <p className="text-xs font-bold text-foreground truncate">Richard</p>
-              <p className="text-[11px] text-slate-500 truncate">@richard</p>
-            </div>
-          </Link>
-          <Link
-            href="/login"
-            aria-label="Sair"
-            className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-          </Link>
-        </div>
+        {/* Auth / Current User Quick Summary */}
+        {currentUser ? (
+          <div className="flex items-center justify-between rounded-xl p-2 hover:bg-surface-muted transition-colors">
+            <Link href={`/profile/${currentUser.username || 'richard'}`} className="flex items-center gap-2.5 min-w-0">
+              <Avatar fallbackName={currentUser.fullName || currentUser.username || 'Richard'} size="sm" />
+              <div className="truncate">
+                <p className="text-xs font-bold text-foreground truncate">{currentUser.fullName || currentUser.username || 'Richard'}</p>
+                <p className="text-[11px] text-slate-500 truncate">@{currentUser.username || 'richard'}</p>
+              </div>
+            </Link>
+            <button
+              onClick={handleSignOut}
+              title="Sair da conta"
+              aria-label="Sair da conta"
+              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 p-1">
+            <Link href="/login" className="block">
+              <Button variant="outline" size="sm" className="w-full text-xs font-semibold justify-center">
+                Entrar
+              </Button>
+            </Link>
+            <Link href="/register" className="block">
+              <Button variant="accent" size="sm" className="w-full text-xs font-bold justify-center">
+                Criar Conta
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     </aside>
   );

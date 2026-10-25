@@ -8,8 +8,31 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
 
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+
 export const RightAside: React.FC = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const isConnected = isSupabaseConfigured();
+
+  React.useEffect(() => {
+    if (!isConnected) {
+      setIsAuthenticated(true);
+      return;
+    }
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [isConnected]);
 
   const trendingTopics = [
     { tag: 'PrivacidadeDigital', posts: '1.2k publicações', category: 'Tecnologia' },
@@ -31,6 +54,28 @@ export const RightAside: React.FC = () => {
           className="h-10 w-full rounded-full border border-border bg-surface-muted pl-10 pr-4 text-sm text-foreground placeholder:text-slate-400 focus:border-accent focus:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
         />
       </div>
+
+      {/* Guest Sign-up Card */}
+      {!isAuthenticated && (
+        <Card className="p-4 border-accent/20 bg-surface">
+          <h2 className="text-sm font-bold text-foreground">Novo no VÉRSE?</h2>
+          <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+            Cadastre-se para participar das conversas, criar publicações com IA ética e trocar mensagens privadas com criptografia de ponta a ponta.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link href="/register">
+              <Button variant="accent" size="sm" className="w-full font-bold justify-center">
+                Criar Conta Gratuita
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="outline" size="sm" className="w-full font-semibold justify-center">
+                Fazer Login
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {/* Zero Cost / Open Source Badge */}
       <Card className="p-4 bg-gradient-to-br from-navy-900 to-navy-950 text-white border-navy-800">
