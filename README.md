@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VÉRSE 🌐
 
-## Getting Started
+> Rede social de microblogging independente, minimalista, privada e com inteligência artificial sob consentimento do usuário.
 
-First, run the development server:
+Projetada com **orçamento inicial de R$ 0,00**, arquitetura modular baseada em **Next.js 14 (App Router)**, **TypeScript estrito**, **PostgreSQL / Supabase** com **100% de cobertura de Row Level Security (RLS)** e testes automatizados.
+
+---
+
+## 🚀 Como Executar Localmente
+
+Consulte o guia completo em [docs/ZERO_COST_SETUP.md](docs/ZERO_COST_SETUP.md).
 
 ```bash
+# 1. Instalar dependências
+npm install
+
+# 2. Configurar variáveis de ambiente
+cp .env.example .env.local
+
+# 3. Executar em modo desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# 4. Executar os testes automatizados
+npm run test
+
+# 5. Compilar o build de produção
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔒 Princípios de Segurança e Privacidade
+- **Row Level Security (RLS):** Toda query ao banco é verificada pelo PostgreSQL. Nenhum usuário altera ou apaga registros alheios.
+- **Isolamento de Segredos:** A chave `SUPABASE_SERVICE_ROLE_KEY` e chaves de IA nunca são enviadas ao navegador.
+- **Preparação para Criptografia de Ponta a Ponta (E2EE):** As tabelas de mensagens cifradas já estão modeladas sem texto puro no servidor. O protocolo será ativado na Fase 6 conforme [docs/E2EE_SECURITY_SPEC.md](docs/E2EE_SECURITY_SPEC.md).
+- **Sem Vigilância:** Sem rastreadores invasivos, telemetria predatória ou venda de dados.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📑 Documentação Técnica
+- [Plano de Arquitetura e Especificação (Fase 1 e 2)](docs/ZERO_COST_SETUP.md)
+- [Especificação do Banco de Dados e RLS](docs/DATABASE_SCHEMA.md)
+- [Especificação de Segurança E2EE (Fase 6)](docs/E2EE_SECURITY_SPEC.md)
