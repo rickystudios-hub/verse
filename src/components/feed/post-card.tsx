@@ -142,29 +142,37 @@ export const PostCard: React.FC<PostCardProps> = ({
             )}
           </div>
 
-          {/* Post Text */}
-          <p className="mt-1.5 text-sm md:text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
-            {post.content}
-          </p>
+          {/* Post Text with Link to thread */}
+          <Link href={`/post/${post.id}`} className="block group">
+            <p className="mt-1.5 text-sm md:text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words group-hover:text-foreground/90">
+              {post.content}
+            </p>
 
-          {/* Media Previews */}
-          {post.media_urls && post.media_urls.length > 0 && (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={post.media_urls[0]}
-                alt="Conteúdo de mídia da publicação"
-                className="max-h-96 w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          )}
+            {/* Media Previews */}
+            {post.media_urls && post.media_urls.length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={post.media_urls[0]}
+                  alt="Conteúdo de mídia da publicação"
+                  className="max-h-96 w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            )}
+          </Link>
 
           {/* Interaction Bar */}
           <div className="flex items-center justify-between pt-3 mt-1 text-slate-500 text-xs max-w-md">
             {/* Replies */}
-            <button
-              onClick={() => onReply && onReply(post)}
+            <Link
+              href={`/post/${post.id}`}
+              onClick={(e) => {
+                if (onReply) {
+                  e.preventDefault();
+                  onReply(post);
+                }
+              }}
               className="flex items-center gap-1.5 group hover:text-accent transition-colors"
               aria-label={`${post.replies_count} respostas`}
             >
@@ -172,7 +180,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <MessageCircle className="h-4 w-4" />
               </div>
               <span>{formatNumberCompact(post.replies_count)}</span>
-            </button>
+            </Link>
 
             {/* Reposts */}
             <button

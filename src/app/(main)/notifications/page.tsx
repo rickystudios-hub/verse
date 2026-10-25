@@ -1,55 +1,53 @@
 'use client';
 
 import * as React from 'react';
-import { Bell, Heart, Repeat2, UserPlus, CheckCheck } from 'lucide-react';
+import { Bell, Heart, Repeat2, UserPlus, CheckCheck, MessageSquare, AtSign } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
+import { socialStore } from '@/lib/store/social-store';
+import { NotificationItem } from '@/types/database.types';
+import { formatRelativeTime } from '@/lib/utils';
 import Link from 'next/link';
 
-interface MockNotification {
-  id: string;
-  type: 'like' | 'repost' | 'follow';
-  actor: typeof INITIAL_MOCK_PROFILES[0];
-  targetText?: string;
-  createdAt: string;
-  isRead: boolean;
-}
-
 export default function NotificationsPage() {
+  const currentUserId = '11111111-1111-4111-8111-111111111111';
   const [filter, setFilter] = React.useState<'all' | 'mentions'>('all');
-  const [notifications, setNotifications] = React.useState<MockNotification[]>([
-    {
-      id: 'notif-1',
-      type: 'like',
-      actor: INITIAL_MOCK_PROFILES[2],
-      targetText: 'O suporte a Row Level Security (RLS) completo no PostgreSQL...',
-      createdAt: new Date(Date.now() - 40 * 60000).toISOString(),
-      isRead: false,
-    },
-    {
-      id: 'notif-2',
-      type: 'follow',
-      actor: INITIAL_MOCK_PROFILES[1],
-      createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
-      isRead: false,
-    },
-    {
-      id: 'notif-3',
-      type: 'repost',
-      actor: INITIAL_MOCK_PROFILES[2],
-      targetText: 'Bem-vindo ao VÉRSE! Uma rede social concebida com princípios inegociáveis...',
-      createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
-      isRead: true,
-    },
-  ]);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [isLoaded, setIsLoaded] = React.useState(false);
+
+  const loadNotifications = React.useCallback(() => {
+    // If no notifications exist yet, seed a couple of initial ones
+    let items = socialStore.getNotifications(currentUserId);
+    if (items.length === 0) {
+      // Seed a welcome notification and an interaction
+      socialStore.toggleLike('post-1', '33333333-3333-4333-8333-333333333333');
+      items = socialStore.getNotifications(currentUserId);
+    }
+    setNotifications(items);
+    setIsLoaded(true);
+  }, [currentUserId]);
+
+  React.useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    socialStore.markAllNotificationsRead(currentUserId);
+    loadNotifications();
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const markAsRead = (id: string) => {
+    socialStore.markNotificationRead(id);
+    loadNotifications();
+  };
+
+  const displayedNotifications =
+    filter === 'mentions'
+      ? notifications.filter((n) => n.type === 'mention')
+      : notifications;
+
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
     <div className="w-full">
@@ -70,7 +68,7 @@ export default function NotificationsPage() {
             className="text-xs gap-1.5 text-accent hover:bg-accent/10"
           >
             <CheckCheck className="h-4 w-4" />
-            Marcar lidas
+            Marcar todas como lidas
           </Button>
         )}
       </div>
@@ -83,7 +81,7 @@ export default function NotificationsPage() {
             filter === 'all' ? 'text-foreground' : 'text-slate-500'
           }`}
         >
-          Todas
+          Todas ({notifications.length})
           {filter === 'all' && (
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-12 rounded-full bg-accent" />
           )}
@@ -94,7 +92,7 @@ export default function NotificationsPage() {
             filter === 'mentions' ? 'text-foreground' : 'text-slate-500'
           }`}
         >
-          Menções
+          Menções ({notifications.filter((n) => n.type === 'mention').length})
           {filter === 'mentions' && (
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-12 rounded-full bg-accent" />
           )}
@@ -102,56 +100,90 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      {filter === 'mentions' ? (
+      {!isLoaded ? (
+        <div className="p-6 text-center text-xs text-slate-500">Carregando notificações...</div>
+      ) : displayedNotifications.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="Nenhuma menção recente"
-          description="Quando alguém mencionar seu @username em uma publicação, você verá aqui."
+          title={filter === 'mentions' ? 'Nenhuma menção' : 'Nenhuma notificação por enquanto'}
+          description={
+            filter === 'mentions'
+              ? 'Quando alguém mencionar seu @username em uma publicação, você verá aqui.'
+              : 'Interações, curtidas, respostas e novos seguidores aparecerão aqui.'
+          }
         />
       ) : (
         <div className="divide-y divide-border">
-          {notifications.map((notif) => (
-            <div
-              key={notif.id}
-              className={`flex items-start gap-3 p-4 transition-colors ${
-                notif.isRead ? 'bg-surface hover:bg-surface-muted/40' : 'bg-accent/5 hover:bg-accent/10'
-              }`}
-            >
-              {/* Type Icon */}
-              <div className="pt-1 shrink-0">
-                {notif.type === 'like' && <Heart className="h-5 w-5 text-rose-500 fill-current" />}
-                {notif.type === 'repost' && <Repeat2 className="h-5 w-5 text-emerald-500" />}
-                {notif.type === 'follow' && <UserPlus className="h-5 w-5 text-accent" />}
-              </div>
+          {displayedNotifications.map((notif) => {
+            const actor = notif.actor || {
+              username: 'usuario',
+              display_name: 'Usuário VÉRSE',
+              avatar_url: null,
+            };
+            const isUnread = !notif.read_at;
 
-              {/* Actor & Details */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Avatar src={notif.actor.avatar_url} fallbackName={notif.actor.display_name} size="sm" />
-                  <Link href={`/profile/${notif.actor.username}`} className="font-bold text-xs text-foreground hover:underline truncate">
-                    {notif.actor.display_name}
-                  </Link>
-                  <span className="text-xs text-slate-500 truncate">@{notif.actor.username}</span>
+            return (
+              <div
+                key={notif.id}
+                onClick={() => markAsRead(notif.id)}
+                className={`flex items-start gap-3 p-4 transition-colors cursor-pointer ${
+                  isUnread
+                    ? 'bg-accent/5 hover:bg-accent/10'
+                    : 'bg-surface hover:bg-surface-muted/40'
+                }`}
+              >
+                {/* Type Icon */}
+                <div className="pt-1 shrink-0">
+                  {notif.type === 'like' && <Heart className="h-5 w-5 text-rose-500 fill-current" />}
+                  {notif.type === 'repost' && <Repeat2 className="h-5 w-5 text-emerald-500" />}
+                  {notif.type === 'reply' && <MessageSquare className="h-5 w-5 text-blue-500" />}
+                  {notif.type === 'mention' && <AtSign className="h-5 w-5 text-purple-500" />}
+                  {notif.type === 'follow' && <UserPlus className="h-5 w-5 text-accent" />}
                 </div>
 
-                <p className="text-xs text-foreground">
-                  {notif.type === 'like' && 'curtiu sua publicação'}
-                  {notif.type === 'repost' && 'repostou sua publicação'}
-                  {notif.type === 'follow' && 'começou a seguir você'}
-                </p>
+                {/* Actor & Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Avatar src={actor.avatar_url} fallbackName={actor.display_name} size="sm" />
+                    <Link
+                      href={`/profile/${actor.username}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-bold text-xs text-foreground hover:underline truncate"
+                    >
+                      {actor.display_name}
+                    </Link>
+                    <span className="text-xs text-slate-500 truncate">@{actor.username}</span>
+                    <span className="text-xs text-slate-400">·</span>
+                    <span className="text-xs text-slate-500">
+                      {formatRelativeTime(notif.created_at)}
+                    </span>
+                  </div>
 
-                {notif.targetText && (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 italic border-l-2 border-border pl-2">
-                    &quot;{notif.targetText}&quot;
+                  <p className="text-xs text-foreground">
+                    {notif.type === 'like' && 'curtiu sua publicação'}
+                    {notif.type === 'repost' && 'repostou sua publicação'}
+                    {notif.type === 'reply' && 'respondeu à sua publicação'}
+                    {notif.type === 'mention' && 'mencionou você em uma publicação'}
+                    {notif.type === 'follow' && 'começou a seguir você'}
                   </p>
+
+                  {notif.resource_id && (
+                    <Link
+                      href={`/post/${notif.resource_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1.5 inline-block text-xs font-semibold text-accent hover:underline"
+                    >
+                      Ver discussão →
+                    </Link>
+                  )}
+                </div>
+
+                {isUnread && (
+                  <span className="h-2 w-2 rounded-full bg-accent shrink-0 mt-2" />
                 )}
               </div>
-
-              {!notif.isRead && (
-                <span className="h-2 w-2 rounded-full bg-accent shrink-0 mt-2" />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

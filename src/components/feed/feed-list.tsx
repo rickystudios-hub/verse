@@ -7,58 +7,48 @@ import { PostComposer } from './post-composer';
 import { PostSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MessageSquareDashed } from 'lucide-react';
-import { INITIAL_MOCK_POSTS } from '@/lib/supabase/mock-fallback';
+import { socialStore } from '@/lib/store/social-store';
 
 export const FeedList: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'for_you' | 'following'>('for_you');
-  const [posts, setPosts] = React.useState<Post[]>(INITIAL_MOCK_POSTS);
-  const [isLoading] = React.useState(false);
+  const [posts, setPosts] = React.useState<Post[]>([]);
+  const [isLoaded, setIsLoaded] = React.useState(false);
+
+  const loadPosts = React.useCallback(() => {
+    const data = socialStore.getPosts(activeTab);
+    setPosts(data);
+    setIsLoaded(true);
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   const handlePostCreated = (newPost: Post) => {
-    setPosts((prev) => [newPost, ...prev]);
+    // Adiciona no social store
+    socialStore.createPost(
+      newPost.author_id,
+      newPost.content,
+      newPost.media_urls,
+      newPost.parent_id
+    );
+    loadPosts();
   };
 
   const handleDeletePost = (postId: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    socialStore.deletePost(postId, '11111111-1111-4111-8111-111111111111');
+    loadPosts();
   };
 
   const handleLikeToggle = (postId: string) => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === postId) {
-          const nextLiked = !p.has_liked;
-          return {
-            ...p,
-            has_liked: nextLiked,
-            likes_count: nextLiked ? p.likes_count + 1 : Math.max(0, p.likes_count - 1),
-          };
-        }
-        return p;
-      })
-    );
+    socialStore.toggleLike(postId, '11111111-1111-4111-8111-111111111111');
+    loadPosts();
   };
 
   const handleRepostToggle = (postId: string) => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === postId) {
-          const nextReposted = !p.has_reposted;
-          return {
-            ...p,
-            has_reposted: nextReposted,
-            reposts_count: nextReposted ? p.reposts_count + 1 : Math.max(0, p.reposts_count - 1),
-          };
-        }
-        return p;
-      })
-    );
+    socialStore.toggleRepost(postId, '11111111-1111-4111-8111-111111111111');
+    loadPosts();
   };
-
-  // Filtra posts quando na aba "Seguindo"
-  const displayedPosts =
-    activeTab === 'following'
-      ? posts.filter((p) => p.author?.username === 'verse_oficial')
-      : posts;
 
   return (
     <div className="w-full">
@@ -105,15 +95,15 @@ export const FeedList: React.FC = () => {
       <PostComposer onPostCreated={handlePostCreated} />
 
       {/* Post List */}
-      {isLoading ? (
+      {!isLoaded ? (
         <div className="divide-y divide-border">
           <PostSkeleton />
           <PostSkeleton />
           <PostSkeleton />
         </div>
-      ) : displayedPosts.length > 0 ? (
+      ) : posts.length > 0 ? (
         <div className="divide-y divide-border">
-          {displayedPosts.map((post) => (
+          {posts.map((post) => (
             <PostCard
               key={post.id}
               post={post}
@@ -126,9 +116,17 @@ export const FeedList: React.FC = () => {
       ) : (
         <EmptyState
           icon={MessageSquareDashed}
-          title="Nenhuma publicação encontrada"
-          description="Você ainda não segue ninguém nesta aba ou ainda não há novas publicações disponíveis."
-          actionLabel="Ver publicações recomendadas"
+          title={
+            activeTab === 'following'
+              ? 'Você ainda não segue ninguém com publicações'
+              : 'Nenhuma publicação encontrada'
+          }
+          description={
+            activeTab === 'following'
+              ? 'Siga criadores na aba Explorar para ver as novidades deles aqui.'
+              : 'Seja o primeiro a publicar algo interessante no VÉRSE!'
+          }
+          actionLabel={activeTab === 'following' ? 'Ver aba Para Você' : undefined}
           onAction={() => setActiveTab('for_you')}
         />
       )}

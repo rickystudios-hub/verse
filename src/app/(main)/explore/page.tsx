@@ -1,34 +1,70 @@
 'use client';
 
 import * as React from 'react';
-import { Search } from 'lucide-react';
+import { Search, UserCheck, UserPlus } from 'lucide-react';
 import { PostCard } from '@/components/feed/post-card';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { INITIAL_MOCK_POSTS, INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
+import { socialStore } from '@/lib/store/social-store';
+import { Post, Profile } from '@/types/database.types';
+import { useToast } from '@/components/ui/toast';
 import Link from 'next/link';
 
 export default function ExplorePage() {
+  const { showToast } = useToast();
+  const currentUserId = '11111111-1111-4111-8111-111111111111';
+
   const [query, setQuery] = React.useState('');
   const [activeCategory, setActiveCategory] = React.useState<'trending' | 'people' | 'tech'>('trending');
+  const [searchResults, setSearchResults] = React.useState<{ posts: Post[]; profiles: Profile[] }>({
+    posts: [],
+    profiles: [],
+  });
 
-  const filteredPosts = query.trim()
-    ? INITIAL_MOCK_POSTS.filter(
-        (p) =>
-          p.content.toLowerCase().includes(query.toLowerCase()) ||
-          p.author?.username.toLowerCase().includes(query.toLowerCase()) ||
-          p.author?.display_name.toLowerCase().includes(query.toLowerCase())
-      )
-    : INITIAL_MOCK_POSTS;
+  const loadData = React.useCallback(() => {
+    if (query.trim()) {
+      const res = socialStore.search(query);
+      setSearchResults(res);
+    } else {
+      const allPosts = socialStore.getPosts('for_you', currentUserId);
+      const allProfiles = socialStore.getProfiles().filter((p) => p.id !== currentUserId);
+      setSearchResults({ posts: allPosts, profiles: allProfiles });
+    }
+  }, [query, currentUserId]);
 
-  const filteredProfiles = query.trim()
-    ? INITIAL_MOCK_PROFILES.filter(
-        (p) =>
-          p.username.toLowerCase().includes(query.toLowerCase()) ||
-          p.display_name.toLowerCase().includes(query.toLowerCase())
-      )
-    : INITIAL_MOCK_PROFILES;
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleToggleFollow = (targetId: string, targetUsername: string) => {
+    try {
+      const res = socialStore.toggleFollow(currentUserId, targetId);
+      loadData();
+      showToast({
+        type: 'info',
+        title: res.isFollowing ? `Seguindo @${targetUsername}` : `Deixou de seguir @${targetUsername}`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha na alteração de seguidor.';
+      showToast({ type: 'error', title: 'Erro', description: msg });
+    }
+  };
+
+  const handleLikeToggle = (id: string) => {
+    socialStore.toggleLike(id, currentUserId);
+    loadData();
+  };
+
+  const handleRepostToggle = (id: string) => {
+    socialStore.toggleRepost(id, currentUserId);
+    loadData();
+  };
+
+  const handleDeletePost = (id: string) => {
+    socialStore.deletePost(id, currentUserId);
+    loadData();
+  };
 
   return (
     <div className="w-full">
@@ -65,7 +101,7 @@ export default function ExplorePage() {
                 : 'bg-surface-muted text-slate-600 dark:text-slate-300 hover:bg-surface-hover'
             }`}
           >
-            👥 Pessoas
+            👥 Pessoas ({searchResults.profiles.length})
           </button>
           <button
             onClick={() => setActiveCategory('tech')}
@@ -83,38 +119,76 @@ export default function ExplorePage() {
       {/* Content based on category or search query */}
       {activeCategory === 'people' ? (
         <div className="divide-y divide-border">
-          {filteredProfiles.map((profile) => (
-            <div key={profile.id} className="flex items-center justify-between p-4 hover:bg-surface-muted/40 transition-colors">
-              <Link href={`/profile/${profile.username}`} className="flex items-center gap-3 min-w-0">
-                <Avatar src={profile.avatar_url} fallbackName={profile.display_name} size="md" />
-                <div className="truncate">
-                  <p className="font-bold text-sm text-foreground hover:underline truncate">
-                    {profile.display_name}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate">@{profile.username}</p>
-                  {profile.bio && (
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-1">
-                      {profile.bio}
-                    </p>
-                  )}
+          {searchResults.profiles.length > 0 ? (
+            searchResults.profiles.map((prof) => {
+              const isFollowing = socialStore.isFollowing(currentUserId, prof.id);
+
+              return (
+                <div
+                  key={prof.id}
+                  className="flex items-center justify-between p-4 hover:bg-surface-muted/40 transition-colors"
+                >
+                  <Link href={`/profile/${prof.username}`} className="flex items-center gap-3 min-w-0">
+                    <Avatar src={prof.avatar_url} fallbackName={prof.display_name} size="md" />
+                    <div className="truncate">
+                      <p className="font-bold text-sm text-foreground hover:underline truncate">
+                        {prof.display_name}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">@{prof.username}</p>
+                      {prof.bio && (
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-1">
+                          {prof.bio}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant={isFollowing ? 'outline' : 'primary'}
+                    onClick={() => handleToggleFollow(prof.id, prof.username)}
+                    className="shrink-0 font-semibold text-xs gap-1"
+                  >
+                    {isFollowing ? (
+                      <>
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Seguindo
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Seguir
+                      </>
+                    )}
+                  </Button>
                 </div>
-              </Link>
-              <Button size="sm" variant="outline" className="shrink-0 font-semibold text-xs">
-                Seguir
-              </Button>
-            </div>
-          ))}
+              );
+            })
+          ) : (
+            <EmptyState
+              icon={Search}
+              title="Nenhuma pessoa encontrada"
+              description={`Nenhum usuário correspondeu ao termo "${query}".`}
+            />
+          )}
         </div>
       ) : (
         <div className="divide-y divide-border">
-          {filteredPosts.length > 0 ? (
-            filteredPosts.map((post) => <PostCard key={post.id} post={post} />)
+          {searchResults.posts.length > 0 ? (
+            searchResults.posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onLikeToggle={handleLikeToggle}
+                onRepostToggle={handleRepostToggle}
+                onDelete={handleDeletePost}
+              />
+            ))
           ) : (
             <EmptyState
               icon={Search}
               title="Nenhum resultado encontrado"
               description={`Não encontramos publicações para "${query}". Tente buscar por outros termos ou explore os tópicos em alta.`}
-              actionLabel="Limpar busca"
+              actionLabel={query ? 'Limpar busca' : undefined}
               onAction={() => setQuery('')}
             />
           )}

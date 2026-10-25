@@ -10,23 +10,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { PostCard } from '@/components/feed/post-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
-import { INITIAL_MOCK_PROFILES, INITIAL_MOCK_POSTS } from '@/lib/supabase/mock-fallback';
-import { Calendar, Shield, MessageSquare, ArrowLeft } from 'lucide-react';
+import { socialStore } from '@/lib/store/social-store';
+import { Post, Profile } from '@/types/database.types';
+import { Calendar, Shield, MessageSquare, ArrowLeft, UserPlus, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ProfilePage() {
   const params = useParams();
   const username = (params.username as string)?.toLowerCase() || 'richard';
   const { showToast } = useToast();
+  const currentUserId = '11111111-1111-4111-8111-111111111111'; // Current authenticated user
 
   const [activeTab, setActiveTab] = React.useState<'posts' | 'replies' | 'likes'>('posts');
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
-  
-  // Perfil exibido
-  const profile =
-    INITIAL_MOCK_PROFILES.find((p) => p.username.toLowerCase() === username) || {
-      id: 'custom-user',
-      username: username,
+  const [followListModal, setFollowListModal] = React.useState<'followers' | 'following' | null>(null);
+
+  const [profile, setProfile] = React.useState<Profile | null>(null);
+  const [isFollowing, setIsFollowing] = React.useState(false);
+  const [followers, setFollowers] = React.useState<Profile[]>([]);
+  const [following, setFollowing] = React.useState<Profile[]>([]);
+  const [posts, setPosts] = React.useState<Post[]>([]);
+  const [displayName, setDisplayName] = React.useState('');
+  const [bio, setBio] = React.useState('');
+
+  const loadProfileData = React.useCallback(() => {
+    const prof = socialStore.getProfileByUsername(username) || {
+      id: `user-${username}`,
+      username,
       display_name: username.charAt(0).toUpperCase() + username.slice(1),
       bio: 'Membro da comunidade VÉRSE.',
       avatar_url: null,
@@ -34,26 +44,71 @@ export default function ProfilePage() {
       is_private: false,
       is_suspended: false,
       role: 'user' as const,
-      created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+      created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-  const [displayName, setDisplayName] = React.useState(profile.display_name);
-  const [bio, setBio] = React.useState(profile.bio || '');
+    setProfile(prof);
+    setDisplayName(prof.display_name);
+    setBio(prof.bio || '');
 
-  // Posts do usuário
-  const userPosts = INITIAL_MOCK_POSTS.filter(
-    (p) => p.author?.username.toLowerCase() === username || username === 'richard'
-  );
+    const flwrs = socialStore.getFollowers(prof.id);
+    const flwng = socialStore.getFollowing(prof.id);
+    setFollowers(flwrs);
+    setFollowing(flwng);
+
+    const followingStatus = socialStore.isFollowing(currentUserId, prof.id);
+    setIsFollowing(followingStatus);
+
+    const allPosts = socialStore.getPosts('for_you', currentUserId);
+    const userPosts = allPosts.filter((p) => p.author?.username.toLowerCase() === username);
+    setPosts(userPosts);
+  }, [username, currentUserId]);
+
+  React.useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
+
+  if (!profile) return null;
+
+  const isCurrentUser = profile.id === currentUserId || profile.username.toLowerCase() === 'richard';
+
+  const handleToggleFollow = () => {
+    try {
+      const res = socialStore.toggleFollow(currentUserId, profile.id);
+      setIsFollowing(res.isFollowing);
+      loadProfileData();
+      showToast({
+        type: 'info',
+        title: res.isFollowing ? `Seguindo @${profile.username}` : `Deixou de seguir @${profile.username}`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível alterar a relação de seguimento.';
+      showToast({ type: 'error', title: 'Erro', description: msg });
+    }
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditModalOpen(false);
-    showToast({
-      type: 'success',
-      title: 'Perfil atualizado!',
-      description: 'Suas informações foram salvas com sucesso.',
-    });
+    try {
+      const updated = socialStore.updateProfile(profile.id, {
+        displayName,
+        bio,
+      });
+      setProfile(updated);
+      setIsEditModalOpen(false);
+      showToast({
+        type: 'success',
+        title: 'Perfil atualizado!',
+        description: 'Suas alterações foram salvas com sucesso.',
+      });
+    } catch {
+      showToast({
+        type: 'error',
+        title: 'Erro ao atualizar',
+        description: 'Não foi possível salvar os dados do perfil.',
+      });
+    }
   };
 
   const formattedDate = new Intl.DateTimeFormat('pt-BR', {
@@ -70,7 +125,7 @@ export default function ProfilePage() {
         </Link>
         <div>
           <h1 className="text-base font-black text-foreground">{displayName}</h1>
-          <p className="text-xs text-slate-500">{userPosts.length} publicações</p>
+          <p className="text-xs text-slate-500">{posts.length} publicações</p>
         </div>
       </div>
 
@@ -86,14 +141,35 @@ export default function ProfilePage() {
             size="xl"
             className="ring-4 ring-surface"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditModalOpen(true)}
-            className="font-bold rounded-full"
-          >
-            Editar Perfil
-          </Button>
+          {isCurrentUser ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditModalOpen(true)}
+              className="font-bold rounded-full"
+            >
+              Editar Perfil
+            </Button>
+          ) : (
+            <Button
+              variant={isFollowing ? 'outline' : 'primary'}
+              size="sm"
+              onClick={handleToggleFollow}
+              className="font-bold rounded-full gap-1.5"
+            >
+              {isFollowing ? (
+                <>
+                  <UserCheck className="h-4 w-4" />
+                  Seguindo
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" />
+                  Seguir
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -122,14 +198,20 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-4 text-xs pt-1">
-            <span>
-              <strong className="text-foreground font-bold">142</strong>{' '}
+            <button
+              onClick={() => setFollowListModal('following')}
+              className="hover:underline text-left"
+            >
+              <strong className="text-foreground font-bold">{following.length}</strong>{' '}
               <span className="text-slate-500">Seguindo</span>
-            </span>
-            <span>
-              <strong className="text-foreground font-bold">389</strong>{' '}
+            </button>
+            <button
+              onClick={() => setFollowListModal('followers')}
+              className="hover:underline text-left"
+            >
+              <strong className="text-foreground font-bold">{followers.length}</strong>{' '}
               <span className="text-slate-500">Seguidores</span>
-            </span>
+            </button>
           </div>
         </div>
       </div>
@@ -174,13 +256,30 @@ export default function ProfilePage() {
       {/* Tab Content */}
       <div className="divide-y divide-border">
         {activeTab === 'posts' && (
-          userPosts.length > 0 ? (
-            userPosts.map((post) => <PostCard key={post.id} post={post} />)
+          posts.length > 0 ? (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onLikeToggle={() => {
+                  socialStore.toggleLike(post.id, currentUserId);
+                  loadProfileData();
+                }}
+                onRepostToggle={() => {
+                  socialStore.toggleRepost(post.id, currentUserId);
+                  loadProfileData();
+                }}
+                onDelete={() => {
+                  socialStore.deletePost(post.id, currentUserId);
+                  loadProfileData();
+                }}
+              />
+            ))
           ) : (
             <EmptyState
               icon={MessageSquare}
               title="Ainda não há publicações"
-              description="Quando você fizer sua primeira publicação no VÉRSE, ela aparecerá aqui."
+              description="Quando este perfil publicar algo, aparecerá aqui."
             />
           )
         )}
@@ -237,6 +336,40 @@ export default function ProfilePage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Followers / Following Modal */}
+      <Modal
+        isOpen={followListModal !== null}
+        onClose={() => setFollowListModal(null)}
+        title={followListModal === 'followers' ? 'Seguidores' : 'Seguindo'}
+        description={`Pessoas ${followListModal === 'followers' ? 'que seguem' : 'seguidas por'} @${profile.username}`}
+      >
+        <div className="divide-y divide-border max-h-80 overflow-y-auto">
+          {((followListModal === 'followers' ? followers : following) || []).length > 0 ? (
+            (followListModal === 'followers' ? followers : following).map((user) => (
+              <div key={user.id} className="flex items-center justify-between py-3">
+                <Link
+                  href={`/profile/${user.username}`}
+                  onClick={() => setFollowListModal(null)}
+                  className="flex items-center gap-2.5 min-w-0"
+                >
+                  <Avatar src={user.avatar_url} fallbackName={user.display_name} size="sm" />
+                  <div className="truncate">
+                    <p className="text-xs font-bold text-foreground truncate hover:underline">
+                      {user.display_name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate">@{user.username}</p>
+                  </div>
+                </Link>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-slate-500 py-4 text-center">
+              Nenhum perfil nesta lista ainda.
+            </p>
+          )}
+        </div>
       </Modal>
     </div>
   );
