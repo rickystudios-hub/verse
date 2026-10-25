@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { socialStore } from '@/lib/store/social-store';
-import { Moon, Sun, Shield, Trash2, Database, AlertTriangle } from 'lucide-react';
+import { Moon, Sun, Shield, Trash2, Database, AlertTriangle, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
@@ -147,6 +147,38 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Assistente de IA Ético e Transparente */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <span>Assistente de IA Ético (Cota Gratuita)</span>
+          </div>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            15 req/dia
+          </span>
+        </div>
+        <p className="text-xs text-slate-500">
+          O VÉRSE disponibiliza assistência de escrita opcional sem custos adicionais. Seus rascunhos nunca são utilizados para treinar modelos de inteligência artificial.
+        </p>
+        <div className="rounded-xl bg-surface-muted p-3.5 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Cota Diária Disponível:</span>
+            <span className="font-bold text-foreground">
+              {socialStore.getAIQuota('11111111-1111-4111-8111-111111111111').remaining} de {socialStore.getAIQuota('11111111-1111-4111-8111-111111111111').max} requisições restantes hoje
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Provedores Suportados:</span>
+            <span className="font-bold text-foreground">Groq (Llama 3.1) / Gemini / Heurístico Local</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Privacidade em Mensagens (E2EE):</span>
+            <span className="font-bold text-emerald-500">Totalmente isoladas (Sem IA)</span>
+          </div>
+        </div>
+      </Card>
+
       {/* Conexão e Infraestrutura R$ 0,00 */}
       <Card className="p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -166,7 +198,7 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 font-medium">Provedor de IA:</span>
-            <span className="font-bold text-slate-400">Preparado para Fase 5 (Free Tier)</span>
+            <span className="font-bold text-emerald-500">Ativo (Adaptador Multi-Provedor com Fallback)</span>
           </div>
         </div>
       </Card>

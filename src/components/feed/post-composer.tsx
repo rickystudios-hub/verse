@@ -8,6 +8,7 @@ import { ImageIcon, Sparkles, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Post } from '@/types/database.types';
 import { INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
+import { AIAssistantModal } from './ai-assistant-modal';
 
 export interface PostComposerProps {
   onPostCreated?: (post: Post) => void;
@@ -26,6 +27,7 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [imageUrl, setImageUrl] = React.useState('');
   const [showImageInput, setShowImageInput] = React.useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
   const { showToast } = useToast();
 
   const maxChars = APP_CONFIG.limits.maxPostCharacters;
@@ -82,11 +84,15 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   const handleAiClick = () => {
-    showToast({
-      type: 'info',
-      title: 'Assistente de IA VÉRSE (Fase 5)',
-      description: 'O módulo de IA ética com cotas gratuitas e Cloudflare/Groq será configurado na Fase 5.',
-    });
+    if (!content.trim()) {
+      showToast({
+        type: 'info',
+        title: 'Assistente VÉRSE AI',
+        description: 'Digite um rascunho de texto para que o assistente possa aprimorá-lo.',
+      });
+      return;
+    }
+    setIsAiModalOpen(true);
   };
 
   return (
@@ -189,6 +195,15 @@ export const PostComposer: React.FC<PostComposerProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Modal Interativo do Assistente de IA */}
+      <AIAssistantModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        currentText={content}
+        onApply={(improved) => setContent(improved)}
+        userId={INITIAL_MOCK_PROFILES[0].id}
+      />
     </div>
   );
 };

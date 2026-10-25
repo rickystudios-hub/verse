@@ -6,7 +6,10 @@ import {
   ModerationAction, 
   ReportCategory, 
   ReportStatus, 
-  ModerationDecision 
+  ModerationDecision,
+  AIFeature,
+  AIUsageRecord,
+  AIQuotaInfo
 } from '@/types/database.types';
 import { INITIAL_MOCK_POSTS, INITIAL_MOCK_PROFILES } from '@/lib/supabase/mock-fallback';
 import { extractEntities } from '@/lib/security/sanitize';
@@ -21,6 +24,8 @@ const BLOCKS_STORAGE_KEY = 'verse_blocks_v1';
 const MUTES_STORAGE_KEY = 'verse_mutes_v1';
 const REPORTS_STORAGE_KEY = 'verse_reports_v1';
 const MODERATION_ACTIONS_STORAGE_KEY = 'verse_moderation_actions_v1';
+const AI_USAGE_STORAGE_KEY = 'verse_ai_usage_v1';
+export const DAILY_AI_LIMIT = 15;
 
 export interface FollowRecord {
   follower_id: string;
@@ -674,6 +679,60 @@ class SocialStore {
     );
 
     return { posts: matchedPosts, profiles: matchedProfiles };
+  }
+
+  // --- AI USAGE & QUOTA MANAGEMENT (Transparente e Custo Zero) ---
+  public getAIQuota(userId: string): AIQuotaInfo {
+    const usages = this.load<AIUsageRecord[]>(AI_USAGE_STORAGE_KEY, []);
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    
+    // Calcula requisições realizadas hoje por este usuário
+    const usedToday = usages.filter(
+      (u) => u.user_id === userId && u.created_at.startsWith(today)
+    ).length;
+
+    // Próxima renovação às 00:00 UTC do dia seguinte
+    const tomorrow = new Date();
+    tomorrow.setUTCHours(24, 0, 0, 0);
+
+    return {
+      used: usedToday,
+      max: DAILY_AI_LIMIT,
+      remaining: Math.max(0, DAILY_AI_LIMIT - usedToday),
+      resetAt: tomorrow.toISOString(),
+    };
+  }
+
+  public recordAIUsage(
+    userId: string,
+    feature: AIFeature,
+    promptTokens = 0,
+    completionTokens = 0
+  ): AIQuotaInfo {
+    const quota = this.getAIQuota(userId);
+    if (quota.remaining <= 0) {
+      throw new Error(`Limite diário de IA atingido (${DAILY_AI_LIMIT}/${DAILY_AI_LIMIT}). Renovação às 00:00 UTC.`);
+    }
+
+    const usages = this.load<AIUsageRecord[]>(AI_USAGE_STORAGE_KEY, []);
+    const record: AIUsageRecord = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ai_${Date.now()}`,
+      user_id: userId,
+      feature,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      created_at: new Date().toISOString(),
+    };
+
+    usages.push(record);
+    this.save(AI_USAGE_STORAGE_KEY, usages);
+
+    return this.getAIQuota(userId);
+  }
+
+  public getAIUsageHistory(userId: string): AIUsageRecord[] {
+    const usages = this.load<AIUsageRecord[]>(AI_USAGE_STORAGE_KEY, []);
+    return usages.filter((u) => u.user_id === userId);
   }
 }
 

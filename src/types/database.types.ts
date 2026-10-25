@@ -120,3 +120,21 @@ export interface ModerationAction {
   moderator?: Profile;
 }
 
+export type AIFeature = 'grammar' | 'tone' | 'clarify' | 'summarize' | 'hashtags';
+export type AITone = 'formal' | 'casual' | 'poetic' | 'concise';
+
+export interface AIUsageRecord {
+  id: string;
+  user_id: string;
+  feature: AIFeature;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  created_at: string;
+}
+
+export interface AIQuotaInfo {
+  used: number;
+  max: number;
+  remaining: number;
+  resetAt: string;
+}

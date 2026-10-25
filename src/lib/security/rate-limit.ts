@@ -74,3 +74,4 @@ export class RateLimiter {
 export const globalApiRateLimiter = new RateLimiter(60, 60000); // 60 req/min
 export const authRateLimiter = new RateLimiter(10, 60000); // 10 tentativas login/min
 export const postCreationRateLimiter = new RateLimiter(15, 60000); // 15 posts/min
+export const aiRateLimiter = new RateLimiter(10, 60000); // 10 req de IA/min
