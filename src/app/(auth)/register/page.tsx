@@ -37,6 +37,17 @@ export default function RegisterPage() {
 
   const usernameValue = watch('username');
 
+  React.useEffect(() => {
+    if (isConnected) {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          router.replace('/');
+        }
+      });
+    }
+  }, [isConnected, router]);
+
   const onSubmit = async (data: RegisterInput) => {
     setErrorMessage(null);
     setSuccessInfo(null);

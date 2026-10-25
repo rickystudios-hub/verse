@@ -124,8 +124,11 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         {/* Banner de Cota e Privacidade Ética */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-neutral-900/80 border border-neutral-800 rounded-xl text-xs">
           <div className="flex items-center gap-2 text-neutral-400">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>100% Privado: Seus dados não são usados para treinar modelos.</span>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              IA Ativada
+            </span>
+            <span>100% Privado: Seus dados não treinam modelos.</span>
           </div>
           <div className="flex items-center gap-1.5 font-medium">
             <Clock className="w-3.5 h-3.5 text-neutral-400" />
@@ -134,6 +137,35 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Sugestões de Rascunho se o campo estiver vazio */}
+        {!currentText.trim() && (
+          <div className="space-y-2 p-3 bg-neutral-900/60 border border-amber-500/20 rounded-xl">
+            <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Inspiração Rápida (Clique para aplicar um rascunho):
+            </p>
+            <div className="space-y-1.5">
+              {[
+                'Privacidade digital não é sobre ter algo a esconder, é sobre o direito fundamental de escolher o que compartilhar.',
+                'Explorando as fronteiras do microblogging independente e soberano no universo VÉRSE.',
+                'Criptografia de ponta a ponta não deve ser um privilégio, mas o padrão de qualquer comunicação humana.',
+              ].map((idea, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    onApply(idea);
+                    onClose();
+                  }}
+                  className="w-full text-left text-xs p-2.5 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 transition-colors"
+                >
+                  &ldquo;{idea}&rdquo;
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Seleção de Funcionalidade */}
         <div className="space-y-2">

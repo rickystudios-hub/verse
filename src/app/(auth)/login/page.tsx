@@ -21,6 +21,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -29,6 +30,17 @@ export default function LoginPage() {
       password: '',
     },
   });
+
+  React.useEffect(() => {
+    if (isConnected) {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          router.replace('/');
+        }
+      });
+    }
+  }, [isConnected, router]);
 
   const onSubmit = async (data: LoginInput) => {
     setErrorMessage(null);
@@ -131,6 +143,43 @@ export default function LoginPage() {
           Entrar
         </Button>
       </form>
+
+      {/* Contas de Acesso Rápido para Testes */}
+      <div className="rounded-xl border border-border bg-surface-muted/50 p-3 text-xs space-y-2">
+        <p className="font-semibold text-slate-500">Acesso Rápido com Contas Oficiais:</p>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setValue('email', 'richard@verse.app');
+              setValue('password', 'Password@Verse2026!');
+            }}
+            className="rounded-lg bg-surface px-2.5 py-1 font-mono text-[11px] font-semibold text-accent border border-border hover:border-accent transition-colors"
+          >
+            @richard (Admin)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setValue('email', 'oficial@verse.app');
+              setValue('password', 'Password@Verse2026!');
+            }}
+            className="rounded-lg bg-surface px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 border border-border hover:border-accent transition-colors"
+          >
+            @verse (Oficial)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setValue('email', 'clara@verse.app');
+              setValue('password', 'Password@Verse2026!');
+            }}
+            className="rounded-lg bg-surface px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400 border border-border hover:border-accent transition-colors"
+          >
+            @clara (Comunidade)
+          </button>
+        </div>
+      </div>
 
       <div className="pt-2 text-center text-xs text-slate-500">
         Não possui uma conta?{' '}

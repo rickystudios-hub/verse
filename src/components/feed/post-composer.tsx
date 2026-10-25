@@ -159,11 +159,11 @@ export const PostComposer: React.FC<PostComposerProps> = ({
                 type="button"
                 onClick={handleAiClick}
                 aria-label="Assistente de escrita com IA"
-                title="Assistente de IA VÉRSE"
-                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-slate-500 hover:text-accent hover:bg-accent/10 transition-colors"
+                title="Assistente de IA VÉRSE (Ativado)"
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm"
               >
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <span className="hidden sm:inline">IA Ética</span>
+                <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+                <span>IA Ativa</span>
               </button>
 
               <button
