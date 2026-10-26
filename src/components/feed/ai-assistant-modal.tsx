@@ -6,7 +6,6 @@ import {
   Wand2, 
   Check, 
   Copy, 
-  ShieldCheck, 
   AlertCircle, 
   ArrowRight,
   BookOpen,
