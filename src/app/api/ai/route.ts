@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validFeatures: AIFeature[] = ['grammar', 'tone', 'clarify', 'summarize', 'hashtags'];
+    const validFeatures: AIFeature[] = ['grammar', 'tone', 'clarify', 'summarize', 'hashtags', 'generate'];
     if (!feature || !validFeatures.includes(feature)) {
       return NextResponse.json(
         { error: 'Funcionalidade de IA inválida ou não especificada.' },

@@ -121,7 +121,7 @@ export interface ModerationAction {
   moderator?: Profile;
 }
 
-export type AIFeature = 'grammar' | 'tone' | 'clarify' | 'summarize' | 'hashtags';
+export type AIFeature = 'grammar' | 'tone' | 'clarify' | 'summarize' | 'hashtags' | 'generate';
 export type AITone = 'formal' | 'casual' | 'poetic' | 'concise';
 
 export interface AIUsageRecord {

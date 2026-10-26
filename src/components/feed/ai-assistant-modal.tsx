@@ -33,6 +33,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
   onApply,
   userId,
 }) => {
+  const [inputText, setInputText] = useState(currentText);
   const [feature, setFeature] = useState<AIFeature>('grammar');
   const [tone, setTone] = useState<AITone>('concise');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,20 +48,24 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
     resetAt: '',
   });
 
-  // Carrega cota diária do usuário
+  // Carrega cota diária do usuário e sincroniza texto
   useEffect(() => {
-    if (isOpen && userId) {
-      const q = socialStore.getAIQuota(userId);
-      setQuota(q);
+    if (isOpen) {
+      setInputText(currentText);
       setError(null);
       setSuggestion('');
       setExplanation('');
+      if (userId) {
+        const q = socialStore.getAIQuota(userId);
+        setQuota(q);
+      }
     }
-  }, [isOpen, userId]);
+  }, [isOpen, userId, currentText]);
 
   const handleGenerate = async () => {
-    if (!currentText.trim()) {
-      setError('Por favor, escreva algo no editor antes de solicitar a IA.');
+    const textToSend = inputText.trim();
+    if (!textToSend) {
+      setError('Por favor, escreva um rascunho ou tema antes de solicitar a IA.');
       return;
     }
 
@@ -77,7 +82,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: currentText,
+          text: textToSend,
           feature,
           tone: feature === 'tone' ? tone : undefined,
           userId,
@@ -138,11 +143,11 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         </div>
 
         {/* Sugestões de Rascunho se o campo estiver vazio */}
-        {!currentText.trim() && (
+        {!inputText.trim() && (
           <div className="space-y-2 p-3 bg-neutral-900/60 border border-amber-500/20 rounded-xl">
             <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              Inspiração Rápida (Clique para aplicar um rascunho):
+              Inspiração Rápida (Clique para preencher):
             </p>
             <div className="space-y-1.5">
               {[
@@ -154,8 +159,8 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
                   key={idx}
                   type="button"
                   onClick={() => {
-                    onApply(idea);
-                    onClose();
+                    setInputText(idea);
+                    setFeature('grammar');
                   }}
                   className="w-full text-left text-xs p-2.5 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 transition-colors"
                 >
@@ -247,7 +252,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             <button
               type="button"
               onClick={() => { setFeature('summarize'); setSuggestion(''); }}
-              className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all col-span-2 sm:col-span-1 ${
+              className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all ${
                 feature === 'summarize'
                   ? 'border-white bg-neutral-800 text-white shadow-sm'
                   : 'border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
@@ -259,6 +264,24 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
               </div>
               <span className="text-[11px] text-neutral-500 leading-tight">
                 Síntese concisa
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setFeature('generate'); setSuggestion(''); }}
+              className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                feature === 'generate'
+                  ? 'border-white bg-neutral-800 text-white shadow-sm'
+                  : 'border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 font-medium text-xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Criar Post</span>
+              </div>
+              <span className="text-[11px] text-neutral-500 leading-tight">
+                Elaborar a partir do tema
               </span>
             </button>
           </div>
@@ -290,14 +313,27 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
           </div>
         )}
 
-        {/* Texto original de referência */}
+        {/* Texto original ou tema */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-neutral-400">
-            <span>Texto atual ({currentText.length} caracteres)</span>
+            <span>Rascunho ou Tema ({inputText.length} caracteres)</span>
+            {inputText && (
+              <button
+                type="button"
+                onClick={() => { setInputText(''); setSuggestion(''); }}
+                className="text-neutral-500 hover:text-neutral-300 text-[11px]"
+              >
+                Limpar
+              </button>
+            )}
           </div>
-          <div className="p-3 bg-neutral-950/60 border border-neutral-800/60 rounded-xl text-neutral-300 text-sm max-h-24 overflow-y-auto whitespace-pre-wrap select-all">
-            {currentText || <span className="text-neutral-600 italic">Nenhum texto informado</span>}
-          </div>
+          <textarea
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="Digite o texto que deseja aprimorar ou o tema para a IA escrever..."
+            rows={3}
+            className="w-full p-3 bg-neutral-950/80 border border-neutral-800 rounded-xl text-neutral-200 text-sm placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500 resize-none transition-colors"
+          />
         </div>
 
         {/* Botão de Disparo */}
@@ -306,7 +342,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             type="button"
             variant="primary"
             onClick={handleGenerate}
-            disabled={isLoading || !currentText.trim() || quota.remaining <= 0}
+            disabled={isLoading || !inputText.trim() || quota.remaining <= 0}
             className="w-full justify-center gap-2 py-2.5"
           >
             {isLoading ? (
@@ -317,7 +353,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                <span>Gerar Sugestão</span>
+                <span>Gerar com IA</span>
               </>
             )}
           </Button>

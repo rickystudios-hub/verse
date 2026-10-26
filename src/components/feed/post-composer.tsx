@@ -87,14 +87,6 @@ export const PostComposer: React.FC<PostComposerProps> = ({
   };
 
   const handleAiClick = () => {
-    if (!content.trim()) {
-      showToast({
-        type: 'info',
-        title: 'Assistente VÉRSE AI',
-        description: 'Digite um rascunho de texto para que o assistente possa aprimorá-lo.',
-      });
-      return;
-    }
     setIsAiModalOpen(true);
   };
 

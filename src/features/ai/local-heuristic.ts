@@ -281,6 +281,11 @@ export function processLocalHeuristic(
       return summarizeText(text);
     case 'hashtags':
       return extractHashtags(text);
+    case 'generate':
+      return {
+        suggestion: `${text.trim()} — Explorando novas ideias e reflexões na comunidade VÉRSE.`,
+        explanation: 'Ideia inicial expandida pelo assistente local.',
+      };
     default:
       return {
         suggestion: text,

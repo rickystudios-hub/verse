@@ -28,6 +28,8 @@ function getFeatureInstruction(feature: AIFeature, tone?: AITone): string {
       return 'Crie uma síntese concisa (TL;DR) em até 2 frases capturando o ponto principal.';
     case 'hashtags':
       return 'Adicione 3 a 4 hashtags relevantes no final do texto para contexto em redes sociais.';
+    case 'generate':
+      return 'Crie uma publicação autêntica, reflexiva e envolvente para rede social com base no tema ou rascunho fornecido pelo autor.';
     default:
       return 'Aprimore o texto para publicação.';
   }
@@ -44,39 +46,60 @@ async function callGroq(
 ): Promise<{ suggestion: string; explanation: string }> {
   const instruction = getFeatureInstruction(feature, tone);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  const candidateModels = [
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+  ];
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `${instruction}\n\nTexto original:\n${text}` },
-        ],
-        temperature: 0.3,
-        max_tokens: 300,
-      }),
-      signal: controller.signal,
-    });
+    let lastError: Error | null = null;
+    for (const model of candidateModels) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: `${instruction}\n\nTexto original ou tema:\n${text}` },
+            ],
+            temperature: 0.3,
+            max_tokens: 350,
+          }),
+          signal: controller.signal,
+        });
 
-    if (!res.ok) {
-      throw new Error(`Groq HTTP ${res.status}`);
+        if (!res.ok) {
+          continue;
+        }
+
+        const data = await res.json();
+        const suggestion = data.choices?.[0]?.message?.content?.trim();
+        if (!suggestion) continue;
+
+        const friendlyModel = model.includes('120b') 
+          ? 'GPT-OSS 120B' 
+          : model.includes('20b') 
+          ? 'GPT-OSS 20B' 
+          : model.split('/').pop() || 'Groq LPU';
+
+        return {
+          suggestion,
+          explanation: `Aprimorado com IA via ${friendlyModel} no Groq.`,
+        };
+      } catch (innerErr) {
+        lastError = innerErr instanceof Error ? innerErr : new Error(String(innerErr));
+      }
     }
-
-    const data = await res.json();
-    const suggestion = data.choices?.[0]?.message?.content?.trim();
-    if (!suggestion) throw new Error('Resposta vazia da Groq');
-
-    return {
-      suggestion,
-      explanation: `Aprimorado via Llama 3.1 no Groq (${feature}).`,
-    };
+    throw lastError || new Error('Nenhum modelo Groq disponível.');
   } finally {
     clearTimeout(timeoutId);
   }
