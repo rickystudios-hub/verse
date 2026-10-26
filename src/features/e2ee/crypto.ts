@@ -134,10 +134,12 @@ export async function encryptE2EEMessage(
  */
 export async function decryptE2EEMessage(
   payload: EncryptedPayload,
-  myPrivateKey: CryptoKey
+  myPrivateKey: CryptoKey,
+  peerPublicKeyJwk?: JsonWebKey
 ): Promise<string> {
   const subtle = getSubtle();
-  const senderPublicKey = await importPublicKey(payload.senderPublicKeyJwk);
+  const keyToUse = peerPublicKeyJwk || payload.senderPublicKeyJwk;
+  const senderPublicKey = await importPublicKey(keyToUse);
   const sharedKey = await deriveSharedSecretKey(myPrivateKey, senderPublicKey);
 
   const iv = base64ToBuffer(payload.iv);

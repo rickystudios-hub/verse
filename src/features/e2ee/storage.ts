@@ -11,6 +11,7 @@ export interface StoredEncryptedMessage {
   senderId: string;
   receiverId: string;
   payload: EncryptedPayload;
+  plaintext?: string;
   createdAt: string;
 }
 
@@ -93,19 +94,26 @@ export async function getContactPublicKey(contactId: string): Promise<JsonWebKey
 }
 
 /**
- * Salva uma mensagem criptografada no armazenamento local (Zero Plaintext)
+ * Salva ou atualiza uma mensagem criptografada no armazenamento local do dispositivo
  */
 export function saveEncryptedMessage(msg: StoredEncryptedMessage): void {
   if (typeof window === 'undefined') return;
 
   const raw = localStorage.getItem(ENCRYPTED_MESSAGES_KEY);
   const messages: StoredEncryptedMessage[] = raw ? JSON.parse(raw) : [];
-  messages.push(msg);
+  
+  const existingIndex = messages.findIndex((m) => m.id === msg.id);
+  if (existingIndex >= 0) {
+    messages[existingIndex] = { ...messages[existingIndex], ...msg };
+  } else {
+    messages.push(msg);
+  }
+  
   localStorage.setItem(ENCRYPTED_MESSAGES_KEY, JSON.stringify(messages));
 }
 
 /**
- * Recupera todas as mensagens criptografadas de uma conversa
+ * Recupera todas as mensagens de uma conversa
  */
 export function getEncryptedMessages(conversationId: string): StoredEncryptedMessage[] {
   if (typeof window === 'undefined') return [];
