@@ -87,11 +87,12 @@ export const RightAside: React.FC = () => {
           O VÉRSE opera sobre cotas gratuitas e arquitetura sustentável. Segurança real e respeito à privacidade sem custo ao usuário.
         </p>
         <Link
-          href="https://github.com"
+          href="https://github.com/rickystudios-hub/verse"
           target="_blank"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
         >
-          <span>Código-fonte aberto</span>
+          <span>Código-fonte no GitHub</span>
           <ExternalLink className="h-3 w-3" />
         </Link>
       </Card>

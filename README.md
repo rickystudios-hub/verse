@@ -1,6 +1,15 @@
 # VÉRSE 🌐
 
-> Rede social de microblogging independente, minimalista, privada e com inteligência artificial ética sob estrito consentimento do usuário.
+[![Next.js 14](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js&style=flat-square)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript&style=flat-square)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwind-css&style=flat-square)](https://tailwindcss.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase_RLS-336791?logo=postgresql&style=flat-square)](https://supabase.com/)
+[![E2EE Web Crypto](https://img.shields.io/badge/E2EE-ECDH_P--256_%2B_AES--GCM--256-emerald?style=flat-square)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+[![Tests Passing](https://img.shields.io/badge/Tests-52%2F52_Passing-success?style=flat-square)](https://vitest.dev/)
+[![Zero Cost](https://img.shields.io/badge/Infraestrutura-R%24_0%2C00-gold?style=flat-square)](#-arquitetura-a-custo-zero-r-000)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE)
+
+> **VÉRSE** é uma rede social de microblogging independente, minimalista, privada e com inteligência artificial ética sob estrito controle e consentimento do usuário.
 
 Projetada com **orçamento inicial de R$ 0,00**, arquitetura modular em **Next.js 14 (App Router)**, **TypeScript estrito**, **Tailwind CSS**, **PostgreSQL / Supabase** com **100% de cobertura de Row Level Security (RLS)**, **Web Crypto API (E2EE)** e testes automatizados abrangentes.
 
@@ -120,6 +129,21 @@ npx vitest run
 
 ---
 
+## 🚀 Como Fazer o Deploy na Vercel (100% Gratuito)
+
+1. Acesse **[vercel.com](https://vercel.com)** e clique em **"Add New..."** > **"Project"**.
+2. Conecte sua conta do GitHub e selecione o repositório **`rickystudios-hub/verse`**.
+3. Na seção **Environment Variables**, adicione as variáveis de ambiente:
+   - `NEXT_PUBLIC_SUPABASE_URL`: sua URL do Supabase (`https://xxxx.supabase.co`)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: sua chave anônima pública do Supabase
+   - `SUPABASE_SERVICE_ROLE_KEY`: sua chave administrativa do servidor
+   - `NEXT_PUBLIC_SITE_URL`: `https://seu-projeto.vercel.app` (ou seu domínio)
+   - `AI_PROVIDER`: `enabled`
+4. Clique em **"Deploy"**. A Vercel construirá o app em menos de 2 minutos.
+
+---
+
 ## ⚖️ Licença e Propósito
 
-Desenvolvido como projeto de código aberto focado em soberania digital, privacidade do usuário e comunicação livre de vigilância predatória.
+Desenvolvido como projeto de código aberto sob a licença **MIT**, focado em soberania digital, privacidade do usuário e comunicação livre de vigilância predatória.
+
