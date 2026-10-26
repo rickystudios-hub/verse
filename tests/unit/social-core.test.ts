@@ -148,4 +148,133 @@ describe('FASE 3 — Núcleo Social (SocialStore & Regras de Negócio)', () => {
       expect(results.profiles.some((p) => p.username === 'clara_dev')).toBe(true);
     });
   });
+
+  describe('Foto de Perfil, Banner e Regra de 14 Dias do @username', () => {
+    it('deve atualizar avatar, banner, nome de exibição e bio com sucesso', () => {
+      const avatarDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const bannerDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+      const updated = socialStore.updateProfile(user1, {
+        displayName: 'Richard Arquiteto',
+        bio: 'Desenvolvedor e entusiasta de privacidade',
+        avatarUrl: avatarDataUrl,
+        bannerUrl: bannerDataUrl,
+      });
+
+      expect(updated.display_name).toBe('Richard Arquiteto');
+      expect(updated.bio).toBe('Desenvolvedor e entusiasta de privacidade');
+      expect(updated.avatar_url).toBe(avatarDataUrl);
+      expect(updated.banner_url).toBe(bannerDataUrl);
+
+      // Checa persistência
+      const profile = socialStore.getProfileById(user1);
+      expect(profile?.avatar_url).toBe(avatarDataUrl);
+      expect(profile?.banner_url).toBe(bannerDataUrl);
+    });
+
+    it('deve permitir alterar @username pela primeira vez e gravar timestamp', () => {
+      const newUsername = 'richard_novo';
+      const updated = socialStore.updateProfile(user1, { username: newUsername });
+
+      expect(updated.username).toBe(newUsername);
+      expect(updated.username_updated_at).toBeDefined();
+
+      const profile = socialStore.getProfileByUsername(newUsername);
+      expect(profile).toBeDefined();
+      expect(profile?.id).toBe(user1);
+    });
+
+    it('deve BLOQUEAR alteração de @username antes de transcorridos 14 dias', () => {
+      // Tenta alterar novamente imediatamente após o teste anterior (mesmo dia)
+      expect(() => {
+        socialStore.updateProfile(user1, { username: 'richard_outro' });
+      }).toThrow(/uma vez a cada 14 dias/);
+    });
+
+    it('deve rejeitar @username com formato inválido', () => {
+      expect(() => {
+        socialStore.updateProfile(user2, { username: 'ab' }); // muito curto (< 3)
+      }).toThrow(/deve conter de 3 a 20 caracteres/);
+
+      expect(() => {
+        socialStore.updateProfile(user2, { username: 'user@invalido!' }); // caracteres especiais
+      }).toThrow(/deve conter de 3 a 20 caracteres/);
+    });
+
+    it('deve rejeitar @username que já pertence a outro usuário', () => {
+      expect(() => {
+        socialStore.updateProfile(user3, { username: 'verse_oficial' });
+      }).toThrow(/já está em uso/);
+    });
+  });
+
+  describe('Edição e Exclusão de Mensagens', () => {
+    it('deve editar uma mensagem existente marcando como editada', async () => {
+      const { saveEncryptedMessage, getEncryptedMessages, editEncryptedMessage } = await import('@/features/e2ee/storage');
+      
+      const convId = 'conv_test_123';
+      const msgId = 'msg_test_1';
+
+      saveEncryptedMessage({
+        id: msgId,
+        conversationId: convId,
+        senderId: user1,
+        receiverId: user2,
+        payload: {
+          algorithm: 'AES-GCM-256',
+          ciphertext: 'xyz123',
+          iv: 'iv123',
+          senderDeviceId: 'dev_1',
+          senderPublicKeyJwk: {} as any,
+          curve: 'P-256',
+        },
+        plaintext: 'Mensagem original',
+        createdAt: new Date().toISOString(),
+      });
+
+      const beforeEdit = getEncryptedMessages(convId);
+      expect(beforeEdit[0].plaintext).toBe('Mensagem original');
+      expect(beforeEdit[0].isEdited).toBeFalsy();
+
+      const editOk = editEncryptedMessage(msgId, 'Mensagem corrigida com sucesso');
+      expect(editOk).toBe(true);
+
+      const afterEdit = getEncryptedMessages(convId);
+      expect(afterEdit[0].plaintext).toBe('Mensagem corrigida com sucesso');
+      expect(afterEdit[0].isEdited).toBe(true);
+      expect(afterEdit[0].editedAt).toBeDefined();
+    });
+
+    it('deve excluir uma mensagem existente do armazenamento', async () => {
+      const { saveEncryptedMessage, getEncryptedMessages, deleteEncryptedMessage } = await import('@/features/e2ee/storage');
+
+      const convId = 'conv_test_delete';
+      const msgId = 'msg_to_delete';
+
+      saveEncryptedMessage({
+        id: msgId,
+        conversationId: convId,
+        senderId: user1,
+        receiverId: user2,
+        payload: {
+          algorithm: 'AES-GCM-256',
+          ciphertext: 'xyz123',
+          iv: 'iv123',
+          senderDeviceId: 'dev_1',
+          senderPublicKeyJwk: {} as any,
+          curve: 'P-256',
+        },
+        plaintext: 'Mensagem a ser apagada',
+        createdAt: new Date().toISOString(),
+      });
+
+      expect(getEncryptedMessages(convId).length).toBe(1);
+
+      const deleteOk = deleteEncryptedMessage(msgId);
+      expect(deleteOk).toBe(true);
+
+      expect(getEncryptedMessages(convId).length).toBe(0);
+    });
+  });
 });
+

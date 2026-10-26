@@ -12,6 +12,12 @@ export interface StoredEncryptedMessage {
   receiverId: string;
   payload: EncryptedPayload;
   plaintext?: string;
+  isEdited?: boolean;
+  editedAt?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
+  fileName?: string;
+  fileSize?: number;
   createdAt: string;
 }
 
@@ -121,4 +127,41 @@ export function getEncryptedMessages(conversationId: string): StoredEncryptedMes
   const raw = localStorage.getItem(ENCRYPTED_MESSAGES_KEY);
   const messages: StoredEncryptedMessage[] = raw ? JSON.parse(raw) : [];
   return messages.filter((m) => m.conversationId === conversationId);
+}
+
+/**
+ * Edita o conteúdo de texto de uma mensagem
+ */
+export function editEncryptedMessage(messageId: string, newPlaintext: string): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const raw = localStorage.getItem(ENCRYPTED_MESSAGES_KEY);
+  const messages: StoredEncryptedMessage[] = raw ? JSON.parse(raw) : [];
+  const idx = messages.findIndex((m) => m.id === messageId);
+  if (idx === -1) return false;
+
+  messages[idx].plaintext = newPlaintext.trim();
+  messages[idx].isEdited = true;
+  messages[idx].editedAt = new Date().toISOString();
+
+  localStorage.setItem(ENCRYPTED_MESSAGES_KEY, JSON.stringify(messages));
+  return true;
+}
+
+/**
+ * Exclui uma mensagem do armazenamento local
+ */
+export function deleteEncryptedMessage(messageId: string): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const raw = localStorage.getItem(ENCRYPTED_MESSAGES_KEY);
+  let messages: StoredEncryptedMessage[] = raw ? JSON.parse(raw) : [];
+  const initialCount = messages.length;
+  messages = messages.filter((m) => m.id !== messageId);
+
+  if (messages.length !== initialCount) {
+    localStorage.setItem(ENCRYPTED_MESSAGES_KEY, JSON.stringify(messages));
+    return true;
+  }
+  return false;
 }

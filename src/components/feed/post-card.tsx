@@ -15,7 +15,9 @@ import {
   MoreHorizontal, 
   VolumeX, 
   UserX,
-  Clock
+  Clock,
+  FileText,
+  Download
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { ReportModal } from '@/components/moderation/report-modal';
@@ -252,16 +254,60 @@ export const PostCard: React.FC<PostCardProps> = ({
                 {post.content}
               </p>
 
-              {/* Media Previews */}
+              {/* Media Previews (Imagens, Vídeos, Áudio, Arquivos) */}
               {post.media_urls && post.media_urls.length > 0 && (
-                <div className="mt-3 overflow-hidden rounded-2xl border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={post.media_urls[0]}
-                    alt="Conteúdo de mídia da publicação"
-                    className="max-h-96 w-full object-cover"
-                    loading="lazy"
-                  />
+                <div 
+                  className="mt-3 overflow-hidden rounded-2xl border border-border"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {(() => {
+                    const url = post.media_urls[0];
+                    const isVideo = url.startsWith('data:video') || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url);
+                    const isAudio = url.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(url);
+                    const isDoc = url.startsWith('data:application') || url.startsWith('data:text') || /\.(pdf|doc|docx|zip|txt)(\?.*)?$/i.test(url);
+
+                    if (isVideo) {
+                      return (
+                        <video
+                          src={url}
+                          controls
+                          className="max-h-96 w-full rounded-2xl bg-black"
+                        />
+                      );
+                    }
+                    if (isAudio) {
+                      return (
+                        <div className="p-3 bg-surface-muted rounded-2xl">
+                          <audio src={url} controls className="w-full" />
+                        </div>
+                      );
+                    }
+                    if (isDoc) {
+                      return (
+                        <a
+                          href={url}
+                          download="anexo"
+                          className="flex items-center gap-3 p-3 bg-surface-muted hover:bg-surface-muted/80 transition-colors"
+                        >
+                          <FileText className="w-6 h-6 text-accent shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-foreground truncate block">Documento Anexado</span>
+                            <span className="text-[10px] text-slate-500">Clique para baixar arquivo</span>
+                          </div>
+                          <Download className="w-4 h-4 text-slate-400 shrink-0" />
+                        </a>
+                      );
+                    }
+                    return (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={url}
+                        alt="Conteúdo de mídia da publicação"
+                        className="max-h-96 w-full object-cover"
+                        loading="lazy"
+                      />
+                    );
+                  })()}
                 </div>
               )}
             </Link>

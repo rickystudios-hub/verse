@@ -30,6 +30,7 @@ export interface Profile {
   is_private: boolean;
   is_suspended: boolean;
   role: UserRole;
+  username_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 }

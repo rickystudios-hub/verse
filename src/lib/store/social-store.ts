@@ -331,7 +331,14 @@ class SocialStore {
 
   public updateProfile(
     userId: string,
-    data: { displayName: string; bio: string; isPrivate?: boolean }
+    data: {
+      displayName?: string;
+      bio?: string;
+      isPrivate?: boolean;
+      avatarUrl?: string | null;
+      bannerUrl?: string | null;
+      username?: string;
+    }
   ): Profile {
     const profiles = this.getProfiles();
     const index = profiles.findIndex((p) => p.id === userId);
@@ -340,15 +347,60 @@ class SocialStore {
       throw new Error('Perfil não encontrado.');
     }
 
+    // Validação e aplicação de alteração de username (máx 1x a cada 14 dias)
+    if (data.username !== undefined) {
+      const cleanUsername = data.username.trim().toLowerCase().replace(/^@/, '');
+      if (cleanUsername !== profiles[index].username.toLowerCase()) {
+        if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleanUsername)) {
+          throw new Error('O nome de usuário deve conter de 3 a 20 caracteres (apenas letras, números e _).');
+        }
+
+        const isTaken = profiles.some(
+          (p) => p.id !== userId && p.username.toLowerCase() === cleanUsername
+        );
+        if (isTaken) {
+          throw new Error(`O nome de usuário @${cleanUsername} já está em uso.`);
+        }
+
+        const lastChange = profiles[index].username_updated_at;
+        if (lastChange) {
+          const daysPassed = (Date.now() - new Date(lastChange).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysPassed < 14) {
+            const daysLeft = Math.ceil(14 - daysPassed);
+            throw new Error(`Você só pode alterar seu nome de usuário uma vez a cada 14 dias. Tente novamente em ${daysLeft} dia(s).`);
+          }
+        }
+
+        profiles[index].username = cleanUsername;
+        profiles[index].username_updated_at = new Date().toISOString();
+      }
+    }
+
     profiles[index] = {
       ...profiles[index],
-      display_name: data.displayName.trim(),
-      bio: data.bio.trim(),
+      display_name: data.displayName !== undefined ? data.displayName.trim() : profiles[index].display_name,
+      bio: data.bio !== undefined ? data.bio.trim() : profiles[index].bio,
+      avatar_url: data.avatarUrl !== undefined ? data.avatarUrl : profiles[index].avatar_url,
+      banner_url: data.bannerUrl !== undefined ? data.bannerUrl : profiles[index].banner_url,
       is_private: data.isPrivate !== undefined ? data.isPrivate : profiles[index].is_private,
       updated_at: new Date().toISOString(),
     };
 
     this.save(PROFILES_STORAGE_KEY, profiles);
+
+    // Atualiza os posts do autor para sincronizar avatar e nome em todo o feed
+    const posts = this.load<Post[]>(POSTS_STORAGE_KEY, INITIAL_MOCK_POSTS);
+    let postsModified = false;
+    for (let i = 0; i < posts.length; i++) {
+      if (posts[i].author_id === userId) {
+        posts[i].author = profiles[index];
+        postsModified = true;
+      }
+    }
+    if (postsModified) {
+      this.save(POSTS_STORAGE_KEY, posts);
+    }
+
     return profiles[index];
   }
 

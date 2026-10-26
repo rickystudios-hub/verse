@@ -23,6 +23,12 @@ export interface DecryptedMessage {
   createdAt: string;
   isEncrypted: boolean;
   algorithm: string;
+  isEdited?: boolean;
+  editedAt?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
+  fileName?: string;
+  fileSize?: number;
   rawCiphertext?: string;
   iv?: string;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
@@ -12,10 +12,24 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
 import { socialStore } from '@/lib/store/social-store';
 import { Post, Profile } from '@/types/database.types';
-import { Calendar, Shield, MessageSquare, ArrowLeft, UserPlus, UserCheck } from 'lucide-react';
+import { 
+  Calendar, 
+  Shield, 
+  MessageSquare, 
+  ArrowLeft, 
+  UserPlus, 
+  UserCheck, 
+  Camera, 
+  Image as ImageIcon, 
+  Clock, 
+  Lock, 
+  Trash2,
+  Upload
+} from 'lucide-react';
 import Link from 'next/link';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const params = useParams();
   const username = (params.username as string)?.toLowerCase() || 'richard';
   const { showToast } = useToast();
@@ -30,8 +44,13 @@ export default function ProfilePage() {
   const [followers, setFollowers] = React.useState<Profile[]>([]);
   const [following, setFollowing] = React.useState<Profile[]>([]);
   const [posts, setPosts] = React.useState<Post[]>([]);
+
+  // Estados de edição do perfil
   const [displayName, setDisplayName] = React.useState('');
   const [bio, setBio] = React.useState('');
+  const [editUsername, setEditUsername] = React.useState('');
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = React.useState<string | null>(null);
 
   const loadProfileData = React.useCallback(() => {
     const prof = socialStore.getProfileByUsername(username) || {
@@ -51,6 +70,9 @@ export default function ProfilePage() {
     setProfile(prof);
     setDisplayName(prof.display_name);
     setBio(prof.bio || '');
+    setEditUsername(prof.username);
+    setAvatarUrl(prof.avatar_url);
+    setBannerUrl(prof.banner_url);
 
     const flwrs = socialStore.getFollowers(prof.id);
     const flwng = socialStore.getFollowing(prof.id);
@@ -73,6 +95,44 @@ export default function ProfilePage() {
 
   const isCurrentUser = profile.id === currentUserId || profile.username.toLowerCase() === 'richard';
 
+  // Cálculo da regra de 14 dias para alteração de @username
+  const lastUsernameChange = profile.username_updated_at;
+  let usernameCooldownDays = 0;
+  if (lastUsernameChange) {
+    const daysPassed = (Date.now() - new Date(lastUsernameChange).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysPassed < 14) {
+      usernameCooldownDays = Math.ceil(14 - daysPassed);
+    }
+  }
+
+  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast({ type: 'error', title: 'Arquivo muito grande', description: 'O avatar deve ter no máximo 5MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      showToast({ type: 'error', title: 'Arquivo muito grande', description: 'O banner deve ter no máximo 8MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBannerUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleToggleFollow = () => {
     try {
       const res = socialStore.toggleFollow(currentUserId, profile.id);
@@ -94,6 +154,9 @@ export default function ProfilePage() {
       const updated = socialStore.updateProfile(profile.id, {
         displayName,
         bio,
+        avatarUrl,
+        bannerUrl,
+        username: editUsername !== profile.username ? editUsername : undefined,
       });
       setProfile(updated);
       setIsEditModalOpen(false);
@@ -102,11 +165,17 @@ export default function ProfilePage() {
         title: 'Perfil atualizado!',
         description: 'Suas alterações foram salvas com sucesso.',
       });
-    } catch {
+
+      // Se alterou o @, redireciona para a nova URL
+      if (updated.username.toLowerCase() !== username.toLowerCase()) {
+        router.push(`/profile/${updated.username}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível salvar os dados do perfil.';
       showToast({
         type: 'error',
         title: 'Erro ao atualizar',
-        description: 'Não foi possível salvar os dados do perfil.',
+        description: msg,
       });
     }
   };
@@ -124,13 +193,20 @@ export default function ProfilePage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-base font-black text-foreground">{displayName}</h1>
+          <h1 className="text-base font-black text-foreground">{profile.display_name}</h1>
           <p className="text-xs text-slate-500">{posts.length} publicações</p>
         </div>
       </div>
 
       {/* Banner */}
-      <div className="h-32 md:h-40 w-full bg-gradient-to-r from-navy-950 via-navy-800 to-accent" />
+      {profile.banner_url ? (
+        <div 
+          className="h-32 md:h-44 w-full bg-cover bg-center border-b border-border"
+          style={{ backgroundImage: `url(${profile.banner_url})` }}
+        />
+      ) : (
+        <div className="h-32 md:h-44 w-full bg-gradient-to-r from-navy-950 via-navy-800 to-accent" />
+      )}
 
       {/* Profile Header Details */}
       <div className="px-4 pb-4">
@@ -302,19 +378,141 @@ export default function ProfilePage() {
       </div>
 
       {/* Edit Profile Modal Dialog */}
+      {/* Edit Profile Modal Dialog */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         title="Editar Perfil"
-        description="Atualize seu nome de exibição e biografia pública."
+        description="Personalize sua foto, banner, nome e biografia."
       >
-        <form onSubmit={handleSaveProfile} className="space-y-4">
+        <form onSubmit={handleSaveProfile} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          {/* Banner Upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-accent" />
+                Banner do Perfil
+              </span>
+              {bannerUrl && (
+                <button
+                  type="button"
+                  onClick={() => setBannerUrl(null)}
+                  className="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Remover
+                </button>
+              )}
+            </label>
+            <div 
+              className="h-24 w-full rounded-xl border border-dashed border-border flex items-center justify-center relative overflow-hidden bg-cover bg-center bg-surface-muted"
+              style={{ backgroundImage: bannerUrl ? `url(${bannerUrl})` : undefined }}
+            >
+              <label className="cursor-pointer bg-black/60 hover:bg-black/80 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors shadow">
+                <Camera className="w-3.5 h-3.5" />
+                <span>{bannerUrl ? 'Trocar Banner' : 'Adicionar Banner'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBannerFile}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Avatar Upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-accent" />
+                Foto de Perfil
+              </span>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={() => setAvatarUrl(null)}
+                  className="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Remover
+                </button>
+              )}
+            </label>
+            <div className="flex items-center gap-3">
+              <Avatar
+                src={avatarUrl}
+                fallbackName={displayName || 'User'}
+                size="lg"
+                className="border border-border shrink-0"
+              />
+              <label className="cursor-pointer bg-surface-muted hover:bg-surface-muted/80 border border-border text-foreground text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors font-medium">
+                <Upload className="w-3.5 h-3.5 text-accent" />
+                <span>Escolher foto do dispositivo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarFile}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Nome de Exibição */}
           <Input
             label="Nome de Exibição"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             maxLength={60}
+            required
           />
+
+          {/* Nome de Usuário com Regra de 14 dias */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground flex items-center justify-between">
+              <span>Nome de Usuário (@)</span>
+              {usernameCooldownDays > 0 ? (
+                <span className="text-[10px] text-amber-500 font-semibold flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                  <Clock className="w-3 h-3" />
+                  Bloqueado ({usernameCooldownDays}d restantes)
+                </span>
+              ) : (
+                <span className="text-[10px] text-emerald-500 font-medium">
+                  Alteração permitida
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-sm">
+                @
+              </span>
+              <input
+                type="text"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_]/g, ''))}
+                disabled={usernameCooldownDays > 0}
+                maxLength={20}
+                className={`w-full rounded-xl border bg-surface px-8 py-2 text-sm text-foreground placeholder:text-slate-400 focus:outline-none transition-colors ${
+                  usernameCooldownDays > 0 
+                    ? 'border-border/60 bg-surface-muted/60 opacity-70 cursor-not-allowed'
+                    : 'border-border focus:border-accent'
+                }`}
+              />
+              {usernameCooldownDays > 0 && (
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 leading-tight">
+              {usernameCooldownDays > 0 ? (
+                `Você alterou seu @ recentemente. O nome de usuário só pode ser alterado uma vez a cada 14 dias.`
+              ) : (
+                'Importante: você só poderá alterar seu @ novamente 14 dias após salvar.'
+              )}
+            </p>
+          </div>
+
+          {/* Biografia */}
           <Textarea
             label="Biografia (máx 160 caracteres)"
             value={bio}
@@ -322,7 +520,8 @@ export default function ProfilePage() {
             maxLength={160}
             rows={3}
           />
-          <div className="flex justify-end gap-2 pt-2">
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <Button
               type="button"
               variant="outline"
